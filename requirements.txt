@@ -1,0 +1,24 @@
+# Core
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+torch>=2.0.0
+gymnasium>=0.28.0
+matplotlib>=3.7.0
+tqdm>=4.65.0
+
+# Open-source RL baselines
+stable-baselines3>=2.1.0
+
+# LLM integration
+ollama>=0.4.0
+transformers>=4.40.0
+accelerate>=0.27.0
+
+# Optional: real market data
+yfinance>=0.2.18
+
+# API server (for RL Env Studio integration)
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0

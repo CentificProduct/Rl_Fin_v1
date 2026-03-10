@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financial AI RL Testbed</title>
+<style>
+  :root {
+    --primary: #670945;
+    --primary-light: #8b2a5e;
+    --primary-pale: #f9f5f7;
+    --accent: #a84878;
+    --green: #2e7d32;
+    --red: #c62828;
+    --bg: #f4f1f3;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #666666;
+    --border: #e0d4db;
+    --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* Header */
+  header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+    color: white;
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(103,9,69,0.3);
+  }
+  header h1 { font-family: Georgia, serif; font-size: 24px; font-weight: 700; }
+  header .subtitle { font-size: 13px; opacity: 0.8; margin-top: 2px; }
+  .health-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.15); border-radius: 20px;
+    padding: 6px 16px; font-size: 13px;
+  }
+  .health-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #4caf50; animation: pulse 2s infinite;
+  }
+  .health-dot.offline { background: var(--red); animation: none; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  /* Layout */
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px; }
+  @media (max-width: 1100px) { .grid-3 { grid-template-columns: 1fr; } }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+  }
+  .card:hover { box-shadow: 0 4px 20px rgba(103,9,69,0.12); }
+  .card-header {
+    background: var(--primary);
+    color: white;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-header h3 { font-size: 15px; font-weight: 600; }
+  .card-header .env-type {
+    font-size: 11px; background: rgba(255,255,255,0.2);
+    padding: 2px 10px; border-radius: 10px;
+  }
+  .card-body { padding: 16px 18px; }
+
+  /* Environment selector cards */
+  .env-select-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 2px solid var(--border);
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .env-select-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(103,9,69,0.15); }
+  .env-select-card.active { border-color: var(--primary); background: var(--primary-pale); }
+  .env-select-card .icon { font-size: 36px; margin-bottom: 10px; }
+  .env-select-card h3 { font-size: 15px; color: var(--primary); margin-bottom: 6px; }
+  .env-select-card p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .env-select-card .tools { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+  .env-select-card .tool-tag {
+    font-size: 10px; background: var(--primary-pale); color: var(--primary);
+    padding: 2px 8px; border-radius: 8px; border: 1px solid var(--border);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-light); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-green { background: var(--green); color: white; }
+  .btn-green:hover { background: #388e3c; }
+  .btn-red { background: var(--red); color: white; }
+  .btn-red:hover { background: #d32f2f; }
+  .btn-outline {
+    background: transparent; color: var(--primary);
+    border: 1.5px solid var(--primary);
+  }
+  .btn-outline:hover { background: var(--primary-pale); }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  /* Controls panel */
+  .controls-bar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; background: var(--primary-pale);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+  .controls-bar label { font-size: 12px; font-weight: 600; color: var(--primary); }
+  .controls-bar input, .controls-bar select {
+    padding: 5px 10px; border: 1px solid var(--border); border-radius: 5px;
+    font-size: 12px; background: white;
+  }
+
+  /* Sections */
+  .section-title {
+    font-family: Georgia, serif; font-size: 20px; color: var(--primary);
+    margin: 28px 0 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .section-title .line { flex: 1; height: 1px; background: var(--border); }
+
+  /* Observation display */
+  .obs-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 6px; margin-top: 8px;
+  }
+  .obs-item {
+    background: var(--primary-pale); padding: 6px 10px; border-radius: 6px;
+    font-size: 11px; display: flex; justify-content: space-between;
+  }
+  .obs-item .label { color: var(--muted); }
+  .obs-item .value { font-weight: 600; color: var(--primary); font-family: 'Courier New', monospace; }
+
+  /* Reward chart */
+  .chart-container { width: 100%; height: 200px; position: relative; margin-top: 10px; }
+  canvas { width: 100% !important; height: 100% !important; }
+
+  /* Info table */
+  .info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .info-table td { padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .info-table td:first-child { color: var(--muted); width: 40%; }
+  .info-table td:last-child { font-weight: 500; font-family: 'Courier New', monospace; }
+
+  /* Status badges */
+  .badge {
+    display: inline-block; padding: 2px 10px; border-radius: 10px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge-active { background: #e8f5e9; color: var(--green); }
+  .badge-terminated { background: #ffebee; color: var(--red); }
+  .badge-idle { background: #f5f5f5; color: var(--muted); }
+
+  /* Action input */
+  .action-panel {
+    display: flex; gap: 8px; align-items: stretch; margin-top: 10px; flex-wrap: wrap;
+  }
+  .action-panel input {
+    flex: 1; min-width: 100px; padding: 8px 12px; border: 1.5px solid var(--border);
+    border-radius: 6px; font-size: 13px; font-family: 'Courier New', monospace;
+  }
+  .action-panel input:focus { outline: none; border-color: var(--primary); }
+  .action-buttons { display: flex; gap: 6px; }
+
+  /* Log area */
+  .log-area {
+    background: #1e1e2e; color: #cdd6f4; border-radius: 8px;
+    padding: 12px; font-family: 'Courier New', monospace; font-size: 11px;
+    max-height: 250px; overflow-y: auto; line-height: 1.7;
+  }
+  .log-area .log-step { color: #89b4fa; }
+  .log-area .log-reward { color: #a6e3a1; }
+  .log-area .log-error { color: #f38ba8; }
+  .log-area .log-info { color: #cba6f7; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center; padding: 48px 20px; color: var(--muted);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-state p { font-size: 14px; }
+
+  /* Stat row */
+  .stat-row { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+  .stat-box {
+    flex: 1; min-width: 100px; background: var(--primary-pale);
+    padding: 12px; border-radius: 8px; text-align: center;
+  }
+  .stat-box .stat-value { font-size: 22px; font-weight: 700; color: var(--primary); font-family: Georgia, serif; }
+  .stat-box .stat-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* Discrete action buttons */
+  .discrete-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .discrete-actions .btn { flex: 1; min-width: 80px; justify-content: center; }
+
+  /* Explain panel */
+  .explain-panel {
+    background: var(--card); border: 1.5px solid var(--primary);
+    border-radius: var(--radius); margin-bottom: 20px; overflow: hidden;
+  }
+  .explain-header {
+    background: var(--primary-pale); padding: 12px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; user-select: none;
+  }
+  .explain-header h3 { font-size: 14px; color: var(--primary); }
+  .explain-header .toggle { font-size: 18px; color: var(--primary); transition: transform 0.2s; }
+  .explain-header .toggle.open { transform: rotate(180deg); }
+  .explain-body { padding: 16px 18px; display: none; }
+  .explain-body.open { display: block; }
+  .explain-body h4 { font-size: 12px; font-weight: 700; color: var(--primary); margin: 10px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .explain-body h4:first-child { margin-top: 0; }
+  .explain-body p { font-size: 12px; color: var(--text); line-height: 1.6; margin-bottom: 4px; }
+  .explain-body ul { font-size: 12px; color: var(--text); line-height: 1.7; padding-left: 18px; margin-bottom: 6px; }
+  .explain-body .formula {
+    display: inline-block; background: #f0ecee; padding: 2px 8px; border-radius: 4px;
+    font-family: 'Courier New', monospace; font-size: 11px; color: var(--primary);
+  }
+  .explain-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .explain-cols { grid-template-columns: 1fr; } }
+  .obs-explain-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+  .obs-explain-table th { text-align: left; padding: 4px 8px; background: var(--primary-pale); color: var(--primary); font-weight: 600; }
+  .obs-explain-table td { padding: 4px 8px; border-bottom: 1px solid #f0ecee; }
+  .obs-explain-table td:first-child { font-weight: 600; color: var(--primary); font-family: 'Courier New', monospace; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Financial AI RL Testbed</h1>
+    <div class="subtitle">Gymnasium Environment Server &mdash; Interactive Testing Console</div>
+  </div>
+  <div class="health-badge">
+    <div class="health-dot" id="healthDot"></div>
+    <span id="healthText">Connecting...</span>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Stats row -->
+  <div class="stat-row" id="statsRow">
+    <div class="stat-box"><div class="stat-value" id="statEnvs">0</div><div class="stat-label">Active Environments</div></div>
+    <div class="stat-box"><div class="stat-value" id="statSteps">0</div><div class="stat-label">Total Steps</div></div>
+    <div class="stat-box"><div class="stat-value" id="statReward">0.00</div><div class="stat-label">Cumulative Reward</div></div>
+    <div class="stat-box"><div class="stat-value" id="statUptime">0s</div><div class="stat-label">Server Uptime</div></div>
+  </div>
+
+  <!-- Environment selection -->
+  <div class="section-title">Select Environment <div class="line"></div></div>
+  <div class="grid-3" id="envGrid">
+    <!-- Populated dynamically -->
+  </div>
+
+  <!-- Environment explanation panel -->
+  <div id="explainPanel" class="explain-panel" style="display:none;">
+    <div class="explain-header" onclick="toggleExplain()">
+      <h3 id="explainTitle">How This Environment Works</h3>
+      <span class="toggle open" id="explainToggle">&#9660;</span>
+    </div>
+    <div class="explain-body open" id="explainBody"></div>
+  </div>
+
+  <!-- Active environment panel -->
+  <div id="activePanel" style="display:none;">
+    <div class="section-title">Active Session <div class="line"></div></div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+      <!-- Left: Controls + Observation -->
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-header">
+            <h3 id="activeEnvTitle">Environment</h3>
+            <span class="badge badge-active" id="activeStatus">ACTIVE</span>
+          </div>
+          <div class="controls-bar">
+            <button class="btn btn-green btn-sm" onclick="resetEnv()">Reset</button>
+            <button class="btn btn-primary btn-sm" onclick="autoStep()" id="autoBtn">Auto-Step</button>
+            <button class="btn btn-red btn-sm" onclick="stopAutoStep()" id="stopBtn" style="display:none;">Stop</button>
+            <button class="btn btn-outline btn-sm" onclick="deleteEnv()">Close Env</button>
+            <label style="margin-left:auto;">Speed:</label>
+            <select id="stepSpeed" style="width:80px;">
+              <option value="500">Fast</option>
+              <option value="1000" selected>Normal</option>
+              <option value="2000">Slow</option>
+            </select>
+          </div>
+          <div class="card-body">
+            <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:6px;">ACTION</div>
+            <div id="discreteActionsContainer" class="discrete-actions"></div>
+            <div id="continuousActionContainer" style="display:none;">
+              <div class="action-panel">
+                <input type="text" id="continuousInput" placeholder="e.g. [0.2, 0.3, 0.1, 0.2, 0.2]">
+                <button class="btn btn-primary btn-sm" onclick="stepContinuous()">Step</button>
+              </div>
+              <div style="font-size:10px;color:var(--muted);margin-top:4px;" id="continuousHint"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Observation</h3><span class="env-type" id="obsShape"></span></div>
+          <div class="card-body">
+            <div class="obs-grid" id="obsGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Reward chart + Info + Log -->
+      <div>
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-header"><h3>Reward History</h3><span class="env-type" id="rewardTotal">Total: 0.00</span></div>
+          <div class="card-body">
+            <div class="chart-container"><canvas id="rewardChart"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 16px;">
+          <div class="card-header"><h3>Step Info</h3></div>
+          <div class="card-body">
+            <table class="info-table" id="infoTable">
+              <tr><td>Step</td><td id="infoStep">0</td></tr>
+              <tr><td>Last Reward</td><td id="infoReward">-</td></tr>
+              <tr><td>Terminated</td><td id="infoTerminated">false</td></tr>
+              <tr><td>Truncated</td><td id="infoTruncated">false</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h3>Event Log</h3><button class="btn btn-sm btn-outline" onclick="clearLog()">Clear</button></div>
+          <div class="card-body" style="padding:0;">
+            <div class="log-area" id="logArea">
+              <div class="log-info">Waiting for environment selection...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state when no env selected -->
+  <div id="emptyState" class="empty-state">
+    <div class="icon">&#9881;</div>
+    <p>Select an environment above to begin testing.</p>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let currentEnvId = null;
+let currentEnvType = null;
+let currentActionType = null;
+let currentActionDim = null;
+let stepCount = 0;
+let cumulativeReward = 0;
+let rewardHistory = [];
+let autoInterval = null;
+let envTypes = {};
+
+// --- Chart (minimal canvas chart, no dependencies) ---
+function drawRewardChart() {
+  const canvas = document.getElementById('rewardChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 200 * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 200;
+  ctx.clearRect(0, 0, W, H);
+
+  if (rewardHistory.length < 2) {
+    ctx.fillStyle = '#999';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Take steps to see reward chart', W/2, H/2);
+    return;
+  }
+
+  const data = rewardHistory;
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  const pad = { t: 10, b: 30, l: 50, r: 10 };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  // Grid
+  ctx.strokeStyle = '#e0d4db';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + (cH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+    ctx.fillText((max - (range / 4) * i).toFixed(3), pad.l - 5, y + 3);
+  }
+
+  // Line
+  ctx.beginPath();
+  ctx.strokeStyle = '#670945';
+  ctx.lineWidth = 2;
+  data.forEach((v, i) => {
+    const x = pad.l + (i / (data.length - 1)) * cW;
+    const y = pad.t + (1 - (v - min) / range) * cH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill
+  const lastX = pad.l + cW;
+  const lastY = pad.t + (1 - (data[data.length-1] - min) / range) * cH;
+  ctx.lineTo(lastX, pad.t + cH);
+  ctx.lineTo(pad.l, pad.t + cH);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(103,9,69,0.08)';
+  ctx.fill();
+
+  // X label
+  ctx.fillStyle = '#999'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Step ' + data.length, W/2, H - 5);
+}
+
+// --- API calls ---
+async function api(path, opts = {}) {
+  try {
+    const res = await fetch(API + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    return await res.json();
+  } catch (e) {
+    log('error', e.message);
+    throw e;
+  }
+}
+
+async function checkHealth() {
+  try {
+    const h = await api('/health');
+    document.getElementById('healthDot').className = 'health-dot';
+    document.getElementById('healthText').textContent = `Online | ${h.active_environments} envs`;
+    document.getElementById('statEnvs').textContent = h.active_environments;
+    document.getElementById('statUptime').textContent = formatUptime(h.uptime_seconds);
+  } catch {
+    document.getElementById('healthDot').className = 'health-dot offline';
+    document.getElementById('healthText').textContent = 'Offline';
+  }
+}
+
+async function loadEnvTypes() {
+  try {
+    envTypes = await api('/envs/list');
+    renderEnvGrid();
+  } catch (e) {
+    document.getElementById('envGrid').innerHTML =
+      '<div class="empty-state" style="grid-column:1/-1;padding:24px;"><p>Failed to load environments. Is the server running?</p></div>';
+  }
+}
+
+function renderEnvGrid() {
+  const icons = { 'stock-trading': '\u{1F4C8}', 'portfolio-allocation': '\u{1F4CA}', 'options-pricing': '\u{1F3AF}' };
+  const grid = document.getElementById('envGrid');
+  grid.innerHTML = '';
+  for (const [name, info] of Object.entries(envTypes)) {
+    const card = document.createElement('div');
+    card.className = 'env-select-card' + (currentEnvType === name ? ' active' : '');
+    card.onclick = () => createEnv(name);
+    card.innerHTML = `
+      <div class="icon">${icons[name] || '\u{1F9EA}'}</div>
+      <h3>${info.display_name}</h3>
+      <p>${info.description}</p>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted);">
+        Action: <strong>${info.action_type}</strong> | Obs dim: <strong>${info.observation_dim}</strong>
+      </div>
+      <div class="tools">
+        ${info.tools.map(t => `<span class="tool-tag">${t.name}</span>`).join('')}
+      </div>
+    `;
+    grid.appendChild(card);
+  }
+}
+
+async function createEnv(envType) {
+  if (currentEnvId) await deleteEnv(true);
+  log('info', `Creating ${envType} environment...`);
+  try {
+    const res = await api('/envs/create', {
+      method: 'POST',
+      body: JSON.stringify({ env_type: envType, config: {} })
+    });
+    currentEnvId = res.env_id;
+    currentEnvType = envType;
+    currentActionType = res.action_space_info.type;
+    currentActionDim = res.action_space_info.dim;
+    stepCount = 0;
+    cumulativeReward = 0;
+    rewardHistory = [];
+    document.getElementById('statSteps').textContent = '0';
+    document.getElementById('statReward').textContent = '0.00';
+    log('info', `Created env ${res.env_id} (${envType}), obs shape: [${res.observation_shape}]`);
+    showActivePanel(envType, res);
+    await resetEnv();
+    renderEnvGrid();
+    checkHealth();
+  } catch (e) { /* logged in api() */ }
+}
+
+async function resetEnv() {
+  if (!currentEnvId) return;
+  try {
+    const res = await api(`/envs/${currentEnvId}/reset`, { method: 'POST' });
+    stepCount = 0;
+    cumulativeReward = 0;
+    rewardHistory = [];
+    updateObservation(res.observation);
+    updateInfo({ step: 0, reward: '-', terminated: false, truncated: false });
+    document.getElementById('statSteps').textContent = '0';
+    document.getElementById('statReward').textContent = '0.00';
+    document.getElementById('rewardTotal').textContent = 'Total: 0.00';
+    document.getElementById('activeStatus').className = 'badge badge-active';
+    document.getElementById('activeStatus').textContent = 'ACTIVE';
+    drawRewardChart();
+    log('info', 'Environment reset');
+  } catch (e) { /* logged */ }
+}
+
+async function stepEnv(action) {
+  if (!currentEnvId) return;
+  try {
+    const res = await api(`/envs/${currentEnvId}/step`, {
+      method: 'POST',
+      body: JSON.stringify({ action })
+    });
+    stepCount++;
+    cumulativeReward += res.reward;
+    rewardHistory.push(res.reward);
+    updateObservation(res.observation);
+    updateInfo({ step: stepCount, reward: res.reward, terminated: res.terminated, truncated: res.truncated });
+    document.getElementById('statSteps').textContent = stepCount;
+    document.getElementById('statReward').textContent = cumulativeReward.toFixed(3);
+    document.getElementById('rewardTotal').textContent = 'Total: ' + cumulativeReward.toFixed(3);
+    drawRewardChart();
+    log('step', `Step ${stepCount}: action=${JSON.stringify(action)}, reward=${res.reward.toFixed(4)}`);
+
+    if (res.terminated || res.truncated) {
+      stopAutoStep();
+      document.getElementById('activeStatus').className = 'badge badge-terminated';
+      document.getElementById('activeStatus').textContent = res.terminated ? 'TERMINATED' : 'TRUNCATED';
+      log('info', `Episode ended at step ${stepCount}. Cumulative reward: ${cumulativeReward.toFixed(4)}`);
+    }
+
+    // Show extra info from env
+    const infoTable = document.getElementById('infoTable');
+    // Remove old dynamic rows
+    while (infoTable.rows.length > 4) infoTable.deleteRow(4);
+    for (const [k, v] of Object.entries(res.info || {})) {
+      const row = infoTable.insertRow();
+      row.innerHTML = `<td>${k}</td><td>${typeof v === 'number' ? v.toFixed(4) : JSON.stringify(v)}</td>`;
+    }
+  } catch (e) { stopAutoStep(); }
+}
+
+async function deleteEnv(silent) {
+  if (!currentEnvId) return;
+  stopAutoStep();
+  try {
+    await api(`/envs/${currentEnvId}`, { method: 'DELETE' });
+    if (!silent) log('info', `Deleted environment ${currentEnvId}`);
+  } catch {}
+  currentEnvId = null;
+  currentEnvType = null;
+  document.getElementById('activePanel').style.display = 'none';
+  document.getElementById('explainPanel').style.display = 'none';
+  document.getElementById('emptyState').style.display = '';
+  renderEnvGrid();
+  checkHealth();
+}
+
+function stepContinuous() {
+  const raw = document.getElementById('continuousInput').value.trim();
+  let action;
+  try {
+    action = JSON.parse(raw);
+    if (!Array.isArray(action)) throw new Error();
+  } catch {
+    log('error', 'Invalid action. Enter a JSON array, e.g. [0.2, 0.3, 0.5]');
+    return;
+  }
+  stepEnv(action);
+}
+
+function stepDiscrete(a) { stepEnv(a); }
+
+function randomAction() {
+  if (currentActionType === 'discrete') {
+    return Math.floor(Math.random() * currentActionDim);
+  } else {
+    // Random weights that sum to 1 for portfolio, or random [0,1] for options
+    if (currentEnvType === 'portfolio-allocation') {
+      const raw = Array.from({ length: currentActionDim }, () => Math.random());
+      const sum = raw.reduce((a, b) => a + b, 0);
+      return raw.map(v => +(v / sum).toFixed(4));
+    }
+    return Array.from({ length: currentActionDim }, () => +(Math.random()).toFixed(4));
+  }
+}
+
+function autoStep() {
+  if (autoInterval) return;
+  const speed = parseInt(document.getElementById('stepSpeed').value);
+  document.getElementById('autoBtn').style.display = 'none';
+  document.getElementById('stopBtn').style.display = '';
+  log('info', 'Auto-stepping started');
+  const doStep = () => stepEnv(randomAction());
+  doStep();
+  autoInterval = setInterval(doStep, speed);
+}
+
+function stopAutoStep() {
+  if (autoInterval) { clearInterval(autoInterval); autoInterval = null; }
+  document.getElementById('autoBtn').style.display = '';
+  document.getElementById('stopBtn').style.display = 'none';
+}
+
+// --- UI Helpers ---
+function showActivePanel(envType, createRes) {
+  document.getElementById('activePanel').style.display = '';
+  document.getElementById('emptyState').style.display = 'none';
+  renderExplainPanel(envType);
+  const info = envTypes[envType];
+  document.getElementById('activeEnvTitle').textContent = info.display_name;
+  document.getElementById('obsShape').textContent = 'obs: [' + createRes.observation_shape + ']';
+
+  // Setup action inputs
+  if (currentActionType === 'discrete') {
+    document.getElementById('discreteActionsContainer').style.display = '';
+    document.getElementById('continuousActionContainer').style.display = 'none';
+    const labels = envType === 'stock-trading'
+      ? ['Strong Sell', 'Sell', 'Hold', 'Buy', 'Strong Buy']
+      : Array.from({ length: currentActionDim }, (_, i) => `Action ${i}`);
+    const colors = envType === 'stock-trading'
+      ? ['btn-red', 'btn-outline', 'btn-primary', 'btn-outline', 'btn-green']
+      : labels.map(() => 'btn-primary');
+    document.getElementById('discreteActionsContainer').innerHTML =
+      labels.map((l, i) => `<button class="btn btn-sm ${colors[i]}" onclick="stepDiscrete(${i})">${l}</button>`).join('');
+  } else {
+    document.getElementById('discreteActionsContainer').style.display = 'none';
+    document.getElementById('continuousActionContainer').style.display = '';
+    if (envType === 'portfolio-allocation') {
+      document.getElementById('continuousHint').textContent =
+        `Enter ${currentActionDim} weights summing to 1.0, e.g. [${Array(currentActionDim).fill((1/currentActionDim).toFixed(2)).join(', ')}]`;
+    } else {
+      document.getElementById('continuousHint').textContent =
+        `Enter ${currentActionDim} value(s) in [0, 1], e.g. [0.5]`;
+    }
+  }
+}
+
+// --- Environment Explanations ---
+const ENV_EXPLAIN = {
+  'stock-trading': {
+    title: 'Stock Trading Environment',
+    overview: 'Simulates single-asset trading using synthetic price data generated by Geometric Brownian Motion with regime switching (bull/bear/sideways). The agent observes technical indicators and decides to buy, sell, or hold at each timestep.',
+    goal: 'Maximize risk-adjusted returns (Sharpe ratio) over the episode by timing entries and exits.',
+    obs: [
+      ['Price', 'Normalized current asset price (relative to initial)'],
+      ['Return', 'Latest single-step log return'],
+      ['MA5 Ratio', 'Price / 5-day moving average &mdash; short-term trend'],
+      ['MA20 Ratio', 'Price / 20-day moving average &mdash; medium-term trend'],
+      ['Volatility5', '5-day rolling standard deviation of returns'],
+      ['Volatility20', '20-day rolling standard deviation of returns'],
+      ['RSI', 'Relative Strength Index (0&ndash;1) &mdash; overbought/oversold signal'],
+      ['Momentum5', '5-day price momentum (rate of change)'],
+      ['Momentum20', '20-day price momentum'],
+      ['MACD', 'Moving Average Convergence Divergence signal'],
+      ['Bollinger', 'Position within Bollinger Bands (0=lower, 1=upper)'],
+      ['Volume Ratio', 'Synthetic volume relative to average'],
+      ['Position', 'Current holdings: -1 (short) to +1 (long)'],
+      ['PnL', 'Unrealized profit/loss on current position'],
+      ['Balance', 'Normalized portfolio cash balance'],
+      ['Drawdown', 'Current drawdown from peak portfolio value'],
+    ],
+    actions: '<strong>Discrete (5 actions):</strong><ul><li><strong>0 &mdash; Strong Sell:</strong> Sell maximum position</li><li><strong>1 &mdash; Sell:</strong> Reduce position</li><li><strong>2 &mdash; Hold:</strong> No trade, keep current position</li><li><strong>3 &mdash; Buy:</strong> Increase position</li><li><strong>4 &mdash; Strong Buy:</strong> Buy maximum position</li></ul>',
+    reward: 'Uses the <strong>Sharpe reward</strong> by default: rolling risk-adjusted return calculated as <span class="formula">mean(returns) / std(returns)</span> over a lookback window. Penalizes large drawdowns and transaction costs (10 bps per trade + 5 bps slippage).',
+    termination: 'Episode ends when all price data is consumed (~500 steps default) or if the portfolio value drops below a safety threshold.',
+  },
+  'portfolio-allocation': {
+    title: 'Portfolio Allocation Environment',
+    overview: 'Multi-asset portfolio optimization where the agent allocates capital across 5 correlated assets. Price data is generated synthetically with random correlations. The agent must rebalance portfolio weights at each step.',
+    goal: 'Maximize a utility function balancing returns against risk, while minimizing transaction costs from rebalancing.',
+    obs: [
+      ['x[0..N]', 'Flattened lookback window of historical returns for each asset (asset_1_t-20, ..., asset_1_t-1, asset_2_t-20, ...)'],
+      ['weights[0..4]', 'Current portfolio weight for each of the 5 assets'],
+      ['portfolio_return', 'Latest portfolio return (weighted sum of asset returns)'],
+      ['portfolio_vol', 'Rolling portfolio volatility'],
+      ['sharpe', 'Rolling Sharpe ratio of the portfolio'],
+      ['cash', 'Fraction of capital held as cash'],
+    ],
+    actions: '<strong>Continuous (5-dim vector):</strong><ul><li>Each value is a target weight for one asset</li><li>Weights are softmax-normalized to sum to 1.0</li><li>Example: <span class="formula">[0.20, 0.20, 0.20, 0.20, 0.20]</span> = equal-weight</li><li>Example: <span class="formula">[0.80, 0.05, 0.05, 0.05, 0.05]</span> = concentrated in asset 1</li></ul>',
+    reward: 'Risk-adjusted utility: <span class="formula">return - risk_aversion * variance - transaction_costs</span>. Transaction costs are proportional to the absolute change in weights at each rebalance.',
+    termination: 'Episode ends when all return data is consumed (~479 steps for 500 days of data with lookback=20).',
+  },
+  'options-pricing': {
+    title: 'Options Pricing & Hedging Environment',
+    overview: 'The agent dynamically delta-hedges a short position in 100 European call options. The underlying stock follows GBM. The agent must decide how aggressively to hedge at each timestep to minimize P&amp;L variance.',
+    goal: 'Minimize hedging error (P&amp;L variance) while managing transaction costs. A perfect hedge would produce zero P&amp;L variance.',
+    obs: [
+      ['Moneyness', 'S/K &mdash; current stock price relative to strike (>1 = in-the-money)'],
+      ['Time to Expiry', 'Fraction of time remaining until option expiry (1.0 &rarr; 0.0)'],
+      ['Volatility', 'Implied or realized volatility of the underlying'],
+      ['Delta', 'Black-Scholes delta of the option (rate of option price change per $1 stock move)'],
+      ['Gamma', 'Rate of change of delta &mdash; measures hedging sensitivity'],
+      ['Hedge Ratio', 'Current hedge position (0 = no hedge, 1 = fully delta-hedged)'],
+      ['PnL', 'Running profit/loss of the hedged position'],
+    ],
+    actions: '<strong>Continuous (1-dim):</strong><ul><li>Value in [0, 1] representing target hedge ratio</li><li><strong>0.0</strong> = no hedge (fully exposed to stock moves)</li><li><strong>1.0</strong> = full delta hedge (match Black-Scholes delta exactly)</li><li>Values between allow partial hedging strategies</li></ul>',
+    reward: 'Negative of squared hedging error: <span class="formula">-(PnL_change)^2 - cost * |hedge_change|</span>. Rewards the agent for keeping P&amp;L stable (low variance) while penalizing excessive rebalancing.',
+    termination: 'Episode ends at option expiry (30 trading days by default, ~30 steps).',
+  },
+};
+
+function renderExplainPanel(envType) {
+  const ex = ENV_EXPLAIN[envType];
+  if (!ex) { document.getElementById('explainPanel').style.display = 'none'; return; }
+  document.getElementById('explainPanel').style.display = '';
+  document.getElementById('explainTitle').textContent = 'How It Works: ' + ex.title;
+  const body = document.getElementById('explainBody');
+  body.className = 'explain-body open';
+  document.getElementById('explainToggle').className = 'toggle open';
+
+  let obsRows = '';
+  if (Array.isArray(ex.obs)) {
+    obsRows = ex.obs.map(([name, desc]) =>
+      `<tr><td>${name}</td><td>${desc}</td></tr>`
+    ).join('');
+  }
+
+  body.innerHTML = `
+    <p>${ex.overview}</p>
+    <div class="explain-cols">
+      <div>
+        <h4>Objective</h4>
+        <p>${ex.goal}</p>
+        <h4>Actions</h4>
+        <p>${ex.actions}</p>
+        <h4>Reward Function</h4>
+        <p>${ex.reward}</p>
+        <h4>Episode End</h4>
+        <p>${ex.termination}</p>
+      </div>
+      <div>
+        <h4>Observation Space (${ex.obs.length} dimensions)</h4>
+        <table class="obs-explain-table">
+          <tr><th>Feature</th><th>Description</th></tr>
+          ${obsRows}
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function toggleExplain() {
+  const body = document.getElementById('explainBody');
+  const toggle = document.getElementById('explainToggle');
+  body.classList.toggle('open');
+  toggle.classList.toggle('open');
+}
+
+const OBS_NAMES = {
+  'stock-trading': ['Price', 'Return', 'MA5 Ratio', 'MA20 Ratio', 'Volatility5', 'Volatility20',
+    'RSI', 'Momentum5', 'Momentum20', 'MACD', 'Bollinger', 'Volume Ratio', 'Position', 'PnL', 'Balance', 'Drawdown'],
+  'options-pricing': ['Moneyness', 'Time to Expiry', 'Volatility', 'Delta', 'Gamma', 'Hedge Ratio', 'PnL'],
+};
+
+function updateObservation(obs) {
+  const grid = document.getElementById('obsGrid');
+  const names = OBS_NAMES[currentEnvType];
+  grid.innerHTML = obs.map((v, i) => {
+    const label = names && names[i] ? names[i] : `x[${i}]`;
+    return `<div class="obs-item"><span class="label">${label}</span><span class="value">${v.toFixed(4)}</span></div>`;
+  }).join('');
+}
+
+function updateInfo({ step, reward, terminated, truncated }) {
+  document.getElementById('infoStep').textContent = step;
+  document.getElementById('infoReward').textContent = typeof reward === 'number' ? reward.toFixed(6) : reward;
+  document.getElementById('infoTerminated').textContent = terminated;
+  document.getElementById('infoTerminated').style.color = terminated ? 'var(--red)' : '';
+  document.getElementById('infoTruncated').textContent = truncated;
+  document.getElementById('infoTruncated').style.color = truncated ? 'var(--red)' : '';
+}
+
+function log(type, msg) {
+  const area = document.getElementById('logArea');
+  const ts = new Date().toLocaleTimeString();
+  const cls = type === 'step' ? 'log-step' : type === 'error' ? 'log-error' :
+              type === 'reward' ? 'log-reward' : 'log-info';
+  area.innerHTML += `<div class="${cls}">[${ts}] ${msg}</div>`;
+  area.scrollTop = area.scrollHeight;
+}
+
+function clearLog() { document.getElementById('logArea').innerHTML = ''; }
+
+function formatUptime(s) {
+  if (s < 60) return Math.round(s) + 's';
+  if (s < 3600) return Math.floor(s/60) + 'm ' + Math.round(s%60) + 's';
+  return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+// --- Init ---
+(async function init() {
+  await checkHealth();
+  await loadEnvTypes();
+  setInterval(checkHealth, 10000);
+  window.addEventListener('resize', drawRewardChart);
+})();
+</script>
+</body>
+</html>
