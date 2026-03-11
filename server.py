@@ -25,6 +25,8 @@ from environments.stock_trading_env import StockTradingEnv
 from environments.portfolio_env import PortfolioAllocationEnv
 from environments.options_pricing_env import OptionsPricingEnv
 from utils.data_loader import FinancialDataLoader
+from agents.dqn_agent import DQNAgent
+from agents.ppo_agent import PPOTrader
 
 
 ENV_REGISTRY = {
@@ -147,6 +149,10 @@ class VerifierConfigRequest(BaseModel):
     verifier_type: str = Field(default="financial", description="Verifier type")
     enabled: bool = Field(default=True, description="Enable verifier checks")
     thresholds: dict = Field(default_factory=dict, description="Verifier thresholds")
+
+class TrainRequest(BaseModel):
+    algorithm: str = Field(default="dqn", description="RL algorithm: dqn")
+    episodes: int = Field(default=15, ge=1, le=100, description="Number of training episodes")
 
 
 # --- Helper ---
@@ -365,6 +371,8 @@ async def create_env(req: CreateEnvRequest):
         "id": rollout_id,
         "env_id": env_id,
         "env_type": req.env_type,
+        "source": "manual",
+        "policy": "human",
         "status": "in_progress",
         "created_at": _to_iso_timestamp(),
         "ended_at": None,
@@ -373,6 +381,7 @@ async def create_env(req: CreateEnvRequest):
         "total_steps": 0,
         "verifier_config": verifier_config,
         "initial_info": _ndarray_to_list(info),
+        "initial_observation": _ndarray_to_list(obs),
         "final_outcome": None,
     }
 
@@ -400,10 +409,18 @@ async def reset_env(env_id: str, seed: Optional[int] = None):
     verifier_config = entry.get("verifier_config", _default_verifier_config(entry["env_type"]))
     rollout_id = str(uuid.uuid4())[:12]
     entry["rollout_id"] = rollout_id
+    source = "manual"
+    policy = "human"
+    if entry.get("is_trained"):
+        source = "agent"
+        policy = f"DQN ({entry.get('agent_type', 'dqn')})"
+
     rollout_store[rollout_id] = {
         "id": rollout_id,
         "env_id": env_id,
         "env_type": entry["env_type"],
+        "source": source,
+        "policy": policy,
         "status": "in_progress",
         "created_at": _to_iso_timestamp(),
         "ended_at": None,
@@ -412,6 +429,7 @@ async def reset_env(env_id: str, seed: Optional[int] = None):
         "total_steps": 0,
         "verifier_config": verifier_config,
         "initial_info": _ndarray_to_list(info),
+        "initial_observation": _ndarray_to_list(obs),
         "final_outcome": None,
     }
 
@@ -451,10 +469,14 @@ async def step_env(env_id: str, req: StepRequest):
     rollout_id = entry.get("rollout_id")
     rollout = rollout_store.get(rollout_id) if rollout_id else None
     if rollout is not None:
+        action_names_map = ["strong_sell", "sell", "hold", "buy", "strong_buy"]
+        action_label = action_names_map[int(raw_action)] if isinstance(raw_action, (int, float)) and 0 <= int(raw_action) < 5 else str(raw_action)
         step_record = {
             "step": int(entry["steps"]),
             "action": _serialize_action(raw_action),
+            "action_label": action_label,
             "reward": float(reward),
+            "observation": _ndarray_to_list(obs),
             "terminated": bool(terminated),
             "truncated": bool(truncated),
             "info": _ndarray_to_list(info_out),
@@ -558,6 +580,237 @@ async def get_rollout(rollout_id: str):
     if rollout is None:
         raise HTTPException(status_code=404, detail=f"Rollout '{rollout_id}' not found")
     return rollout
+
+
+# --- RL Training Endpoints ---
+
+@app.post("/envs/{env_id}/train")
+async def train_agent(env_id: str, req: TrainRequest):
+    """Train an RL agent on this environment. Uses DQN for discrete, PPO for continuous."""
+    if env_id not in active_envs:
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+
+    entry = active_envs[env_id]
+    env = entry["env"]
+    env_type = entry["env_type"]
+    obs, _ = env.reset()
+    state_dim = len(obs)
+
+    is_discrete = hasattr(env.action_space, "n")
+    algo_label = "DQN" if is_discrete else "PPO"
+
+    if is_discrete:
+        action_dim = env.action_space.n
+        agent = DQNAgent(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            hidden_dims=[64, 32],
+            double_dqn=True, dueling=True,
+            learning_rate=5e-4,
+            epsilon_start=1.0, epsilon_end=0.05,
+            epsilon_decay_steps=req.episodes * 400,
+            buffer_size=20000, batch_size=32,
+        )
+    else:
+        action_dim = env.action_space.shape[0]
+        agent = PPOTrader(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            hidden_dim=64,
+            continuous=True,
+            rollout_length=256,
+            n_epochs=3,
+            lr=3e-4,
+        )
+
+    training_history = []
+    for ep in range(req.episodes):
+        if is_discrete:
+            metrics = agent.train_episode(env)
+            ep_data = {
+                "episode": ep + 1,
+                "total_return": float(metrics.get("total_return", 0)),
+                "sharpe_ratio": float(metrics.get("sharpe_ratio", 0)),
+                "portfolio_value": float(metrics.get("portfolio_value", 0)),
+                "max_drawdown": float(metrics.get("max_drawdown", 0)),
+                "avg_loss": float(metrics.get("avg_loss", 0)),
+                "epsilon": float(metrics.get("epsilon", 0)),
+                "steps": int(metrics.get("steps", 0)),
+            }
+        else:
+            rollout = agent.collect_rollout(env)
+            update_info = agent.update(rollout)
+            avg_reward = float(rollout["rewards"].mean())
+            total_reward = float(rollout["rewards"].sum())
+            ep_data = {
+                "episode": ep + 1,
+                "total_return": avg_reward,
+                "sharpe_ratio": 0.0,
+                "portfolio_value": 0.0,
+                "max_drawdown": 0.0,
+                "avg_loss": float(update_info.get("value_loss", 0)),
+                "epsilon": 0.0,
+                "policy_loss": float(update_info.get("policy_loss", 0)),
+                "entropy": float(update_info.get("entropy", 0)),
+                "avg_reward": avg_reward,
+                "steps": int(agent.rollout_length),
+            }
+        training_history.append(ep_data)
+
+        train_rollout_id = f"train-{env_id}-ep{ep+1}"
+        rollout_store[train_rollout_id] = {
+            "id": train_rollout_id,
+            "env_id": env_id,
+            "env_type": env_type,
+            "source": "training",
+            "policy": f"{algo_label} (episode {ep+1}/{req.episodes})",
+            "status": "completed",
+            "created_at": _to_iso_timestamp(),
+            "ended_at": _to_iso_timestamp(),
+            "steps": [],
+            "total_reward": float(ep_data.get("avg_reward", ep_data.get("total_return", 0))),
+            "total_steps": int(ep_data.get("steps", 0)),
+            "verifier_config": entry.get("verifier_config", {}),
+            "initial_info": {},
+            "final_outcome": {k: v for k, v in ep_data.items() if k != "episode"},
+        }
+
+    entry["agent"] = agent
+    entry["is_trained"] = True
+    entry["is_continuous"] = not is_discrete
+    entry["training_history"] = training_history
+    entry["agent_type"] = algo_label.lower()
+
+    env.reset()
+    obs, info = env.reset()
+    entry["last_obs"] = obs
+    entry["steps"] = 0
+
+    best_ep = max(training_history, key=lambda x: x.get("sharpe_ratio", x.get("avg_reward", 0)))
+
+    return {
+        "status": "trained",
+        "algorithm": algo_label,
+        "episodes_trained": req.episodes,
+        "training_history": training_history,
+        "best_episode": best_ep,
+        "final_epsilon": training_history[-1].get("epsilon", 0),
+    }
+
+
+@app.post("/envs/{env_id}/agent-step")
+async def agent_step(env_id: str):
+    """Step the environment using the trained RL agent's policy."""
+    if env_id not in active_envs:
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+
+    entry = active_envs[env_id]
+    if not entry.get("is_trained") or entry.get("agent") is None:
+        raise HTTPException(status_code=400, detail="No trained agent. Call /train first.")
+
+    agent = entry["agent"]
+    env = entry["env"]
+    obs = entry["last_obs"]
+    is_continuous = entry.get("is_continuous", False)
+
+    if is_continuous:
+        import torch
+        state_t = torch.FloatTensor(obs).unsqueeze(0)
+        with torch.no_grad():
+            action_t, _, _, _ = agent.network.get_action_and_value(state_t)
+        action_np = action_t.cpu().numpy().flatten()
+        # Ensure valid weights for portfolio (softmax-like clipping)
+        if entry["env_type"] == "portfolio-allocation":
+            action_np = np.clip(action_np, 0, None)
+            s = action_np.sum()
+            if s > 0:
+                action_np = action_np / s
+            else:
+                action_np = np.ones_like(action_np) / len(action_np)
+        action_for_env = action_np
+        action_label = "[" + ", ".join(f"{v:.3f}" for v in action_np[:5]) + "]"
+        action_serialized = action_np.tolist()
+    else:
+        action = agent.select_action(obs, training=False)
+        action_int = int(action)
+        action_for_env = action_int
+        discrete_names = ["strong_sell", "sell", "hold", "buy", "strong_buy"]
+        action_label = discrete_names[action_int] if action_int < 5 else str(action_int)
+        action_serialized = action_int
+
+    obs_new, reward, terminated, truncated, info = env.step(action_for_env)
+    entry["last_obs"] = obs_new
+    entry["steps"] += 1
+
+    info_out = dict(info) if isinstance(info, dict) else {}
+    info_out["agent_action"] = action_label
+    info_out["agent_action_raw"] = _ndarray_to_list(action_serialized)
+
+    verifier_config = entry.get("verifier_config", _default_verifier_config(entry["env_type"]))
+    info_for_v = dict(info) if isinstance(info, dict) else {}
+    info_for_v["_n_options"] = float(getattr(env, "n_options", 100.0))
+    info_out["verifier_result"] = _build_verifier_result(
+        entry["env_type"], info_for_v, float(reward), verifier_config,
+    )
+
+    algo_label = entry.get("agent_type", "agent").upper()
+    rollout_id = entry.get("rollout_id")
+    rollout = rollout_store.get(rollout_id) if rollout_id else None
+    if rollout is not None:
+        if rollout.get("source") != "agent":
+            rollout["source"] = "agent"
+            rollout["policy"] = f"{algo_label} (trained)"
+        rollout["steps"].append({
+            "step": int(entry["steps"]),
+            "action": _serialize_action(action_serialized),
+            "action_label": action_label,
+            "reward": float(reward),
+            "observation": _ndarray_to_list(obs_new),
+            "terminated": bool(terminated),
+            "truncated": bool(truncated),
+            "info": _ndarray_to_list(info_out),
+        })
+        rollout["total_reward"] = float(rollout.get("total_reward", 0)) + float(reward)
+        rollout["total_steps"] = int(entry["steps"])
+        if terminated or truncated:
+            rollout["status"] = "completed"
+            rollout["ended_at"] = _to_iso_timestamp()
+
+    return {
+        "observation": _ndarray_to_list(obs_new),
+        "reward": float(reward),
+        "terminated": bool(terminated),
+        "truncated": bool(truncated),
+        "info": _ndarray_to_list(info_out),
+        "agent_action": action_label,
+        "agent_action_raw": _ndarray_to_list(action_serialized),
+    }
+
+
+@app.get("/envs/{env_id}/training-status")
+async def training_status(env_id: str):
+    """Get training status and history for this environment's agent."""
+    if env_id not in active_envs:
+        raise HTTPException(status_code=404, detail=f"Environment '{env_id}' not found")
+
+    entry = active_envs[env_id]
+    is_trained = entry.get("is_trained", False)
+    history = entry.get("training_history", [])
+
+    result = {
+        "is_trained": is_trained,
+        "agent_type": entry.get("agent_type", None),
+        "episodes_trained": len(history),
+        "training_history": history,
+    }
+
+    if history:
+        best = max(history, key=lambda x: x["sharpe_ratio"])
+        last = history[-1]
+        result["best_episode"] = best
+        result["latest_metrics"] = last
+
+    return result
 
 
 if __name__ == "__main__":

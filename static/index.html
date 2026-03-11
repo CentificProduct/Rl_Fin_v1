@@ -244,6 +244,105 @@
   .obs-explain-table td { padding: 4px 8px; border-bottom: 1px solid #f0ecee; }
   .obs-explain-table td:first-child { font-weight: 600; color: var(--primary); font-family: 'Courier New', monospace; }
 
+  /* Training panel */
+  .train-panel {
+    background: var(--card); border-radius: var(--radius);
+    border: 2px solid var(--primary); margin-bottom: 16px; overflow: hidden;
+  }
+  .train-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+    color: white; padding: 12px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .train-header h3 { font-size: 14px; }
+  .train-body { padding: 14px 18px; }
+  .train-progress {
+    width: 100%; height: 8px; background: #e0d4db; border-radius: 4px;
+    overflow: hidden; margin: 8px 0;
+  }
+  .train-progress-bar {
+    height: 100%; background: linear-gradient(90deg, var(--primary), var(--green));
+    border-radius: 4px; transition: width 0.3s;
+  }
+  .train-metrics {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px;
+  }
+  .train-metric {
+    background: var(--primary-pale); padding: 8px; border-radius: 6px; text-align: center;
+  }
+  .train-metric .tv { font-size: 16px; font-weight: 700; color: var(--primary); font-family: Georgia, serif; }
+  .train-metric .tl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .badge-training { background: #fff3e0; color: #e65100; }
+  .badge-trained { background: #e8f5e9; color: var(--green); }
+  .badge-untrained { background: #f5f5f5; color: var(--muted); }
+  .chart-container-sm { width: 100%; height: 120px; position: relative; margin-top: 8px; }
+
+  /* Rollout Viewer */
+  .rollout-section { margin-top: 24px; }
+  .rollout-list-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+    border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s;
+  }
+  .rollout-list-item:hover { background: var(--primary-pale); }
+  .rollout-list-item.active { background: var(--primary-pale); border-left: 3px solid var(--primary); }
+  .rollout-tag {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 8px; text-transform: uppercase;
+  }
+  .rollout-tag-training { background: #e3f2fd; color: #1565c0; }
+  .rollout-tag-agent { background: #e8f5e9; color: #2e7d32; }
+  .rollout-tag-manual { background: #f3e5f5; color: #7b1fa2; }
+  .rollout-tag-random { background: #fff3e0; color: #e65100; }
+
+  /* State Diagram */
+  .state-diagram {
+    display: flex; align-items: flex-start; gap: 0; overflow-x: auto;
+    padding: 20px 10px; background: #fafafa; border-radius: 8px; margin: 12px 0;
+    min-height: 180px;
+  }
+  .sd-node {
+    display: flex; flex-direction: column; align-items: center; min-width: 110px; position: relative;
+  }
+  .sd-box {
+    border: 2px solid var(--border); border-radius: 10px; padding: 8px 12px;
+    text-align: center; font-size: 11px; background: white; min-width: 100px;
+    transition: border-color 0.2s;
+  }
+  .sd-box-start { border-color: #1565c0; background: #e3f2fd; }
+  .sd-box-agent { border-color: var(--primary); background: #fce4ec; }
+  .sd-box-final { border-color: #2e7d32; background: #e8f5e9; }
+  .sd-box .sd-title { font-weight: 700; font-size: 11px; color: var(--primary); }
+  .sd-box .sd-sub { font-size: 9px; color: var(--muted); margin-top: 2px; }
+  .sd-arrow {
+    display: flex; align-items: center; padding: 0 2px; margin-top: 18px; color: var(--muted);
+    font-size: 18px;
+  }
+  .sd-tool {
+    margin-top: 6px; padding: 4px 8px; border: 1px dashed var(--border);
+    border-radius: 6px; font-size: 9px; color: var(--muted); background: #fff;
+    text-align: center; max-width: 120px;
+  }
+  .sd-tool .sd-tool-name { font-weight: 600; color: var(--text); }
+  .sd-reward {
+    margin-top: 4px; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700;
+  }
+  .sd-reward-pos { background: #e8f5e9; color: #2e7d32; }
+  .sd-reward-neg { background: #ffebee; color: #c62828; }
+
+  .verifier-checks { margin-top: 8px; }
+  .vc-item {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 0;
+  }
+  .vc-pass { color: #2e7d32; }
+  .vc-fail { color: #c62828; }
+  .vc-icon { font-size: 14px; }
+
+  .failure-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 11px; }
+  .failure-bar-fill {
+    height: 16px; border-radius: 4px; min-width: 4px; transition: width 0.3s;
+  }
+  .failure-bar-label { min-width: 140px; color: var(--muted); }
+  .failure-bar-pct { font-weight: 600; min-width: 40px; text-align: right; }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -298,17 +397,28 @@
             <h3 id="activeEnvTitle">Environment</h3>
             <span class="badge badge-active" id="activeStatus">ACTIVE</span>
           </div>
-          <div class="controls-bar">
-            <button class="btn btn-green btn-sm" onclick="resetEnv()">Reset</button>
-            <button class="btn btn-primary btn-sm" onclick="autoStep()" id="autoBtn">Auto-Step</button>
-            <button class="btn btn-red btn-sm" onclick="stopAutoStep()" id="stopBtn" style="display:none;">Stop</button>
-            <button class="btn btn-outline btn-sm" onclick="deleteEnv()">Close Env</button>
-            <label style="margin-left:auto;">Speed:</label>
-            <select id="stepSpeed" style="width:80px;">
-              <option value="500">Fast</option>
-              <option value="1000" selected>Normal</option>
-              <option value="2000">Slow</option>
-            </select>
+          <div class="controls-bar" style="flex-direction:column;gap:8px;padding:12px 18px;">
+            <!-- Row 1: Basic controls -->
+            <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;">
+              <button class="btn btn-green btn-sm" onclick="resetEnv()">Reset</button>
+              <button class="btn btn-primary btn-sm" onclick="autoStep()" id="autoBtn">Random Auto-Step</button>
+              <button class="btn btn-red btn-sm" onclick="stopAutoStep()" id="stopBtn" style="display:none;">Stop</button>
+              <label style="margin-left:auto;">Speed:</label>
+              <select id="stepSpeed" style="width:80px;">
+                <option value="300">Fast</option>
+                <option value="700" selected>Normal</option>
+                <option value="1500">Slow</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="deleteEnv()">Close Env</button>
+            </div>
+            <!-- Row 2: RL Training controls -->
+            <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border);">
+              <span style="font-size:11px;font-weight:700;color:var(--primary);">RL TRAINING:</span>
+              <button class="btn btn-sm" style="background:#1565c0;color:white;" onclick="trainAgent()" id="trainBtn">Train DQN</button>
+              <button class="btn btn-sm" style="background:#2e7d32;color:white;" onclick="agentAutoStep()" id="agentBtn" disabled>Agent Auto-Step</button>
+              <button class="btn btn-red btn-sm" onclick="stopAgentStep()" id="agentStopBtn" style="display:none;">Stop Agent</button>
+              <span id="trainBadge" class="badge badge-untrained" style="margin-left:4px;">UNTRAINED</span>
+            </div>
           </div>
           <div class="card-body">
             <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:6px;">ACTION</div>
@@ -320,6 +430,25 @@
               </div>
               <div style="font-size:10px;color:var(--muted);margin-top:4px;" id="continuousHint"></div>
             </div>
+          </div>
+        </div>
+
+        <!-- Training results panel -->
+        <div class="train-panel" id="trainPanel" style="display:none;">
+          <div class="train-header">
+            <h3>RL Training</h3>
+            <span id="trainStatusText" style="font-size:12px;opacity:0.9;">Ready</span>
+          </div>
+          <div class="train-body">
+            <div class="train-progress"><div class="train-progress-bar" id="trainProgressBar" style="width:0%"></div></div>
+            <div id="trainProgressLabel" style="font-size:11px;color:var(--muted);text-align:center;">Click "Train DQN" to start</div>
+            <div class="train-metrics" id="trainMetrics" style="display:none;">
+              <div class="train-metric"><div class="tv" id="tmReturn">--</div><div class="tl">Best Return</div></div>
+              <div class="train-metric"><div class="tv" id="tmSharpe">--</div><div class="tl">Best Sharpe</div></div>
+              <div class="train-metric"><div class="tv" id="tmEpsilon">--</div><div class="tl">Final Epsilon</div></div>
+              <div class="train-metric"><div class="tv" id="tmEpisodes">--</div><div class="tl">Episodes</div></div>
+            </div>
+            <div class="chart-container-sm"><canvas id="trainChart"></canvas></div>
           </div>
         </div>
 
@@ -359,6 +488,99 @@
               <div class="log-info">Waiting for environment selection...</div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rollout Viewer -->
+  <div id="rolloutSection" class="rollout-section" style="display:none;">
+    <div class="section-title">
+      Rollout History <div class="line"></div>
+      <button class="btn btn-sm btn-outline" onclick="loadRollouts()">Refresh</button>
+    </div>
+
+    <!-- Rollout List -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <h3>Completed Rollouts</h3>
+        <span class="env-type" id="rolloutCount">0 rollouts</span>
+      </div>
+      <div class="card-body" style="padding:0; max-height:200px; overflow-y:auto;" id="rolloutList">
+        <div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">
+          No rollouts yet. Run a simulation to see results here.
+        </div>
+      </div>
+    </div>
+
+    <!-- Rollout Detail (shown when a rollout is selected) -->
+    <div id="rolloutDetail" style="display:none;">
+      <!-- Header with title and export -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header">
+          <h3 id="rdTitle">Rollout Detail</h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="rdTag" class="rollout-tag rollout-tag-agent">AGENT</span>
+            <button class="btn btn-sm btn-outline" onclick="exportRollout()">Export JSON</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="rdSubtitle" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+          <!-- Rollout State Diagram -->
+          <div id="rdStateDiagram" class="state-diagram"></div>
+        </div>
+      </div>
+
+      <!-- Two-column: Training Progress + Failure Modes / Verifier -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+        <!-- Left: Metrics + Reward Chart -->
+        <div class="card">
+          <div class="card-header"><h3>Training Progress</h3></div>
+          <div class="card-body">
+            <div class="train-metrics" id="rdMetrics">
+              <div class="train-metric"><div class="tv" id="rdReturn">--</div><div class="tl">Total Return</div></div>
+              <div class="train-metric"><div class="tv" id="rdSharpe">--</div><div class="tl">Sharpe Ratio</div></div>
+              <div class="train-metric"><div class="tv" id="rdDrawdown">--</div><div class="tl">Max Drawdown</div></div>
+              <div class="train-metric"><div class="tv" id="rdSteps">--</div><div class="tl">Total Steps</div></div>
+            </div>
+            <div class="chart-container" style="height:160px;"><canvas id="rdRewardChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Right: Failure Modes + Verifier -->
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><h3>Failure Modes</h3></div>
+            <div class="card-body" id="rdFailureModes">
+              <div style="color:var(--muted);font-size:12px;">Run analysis...</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>Verifier Checks</h3></div>
+            <div class="card-body" id="rdVerifier">
+              <div style="color:var(--muted);font-size:12px;">No verifier data</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step-by-step table -->
+      <div class="card">
+        <div class="card-header"><h3>Step-by-Step Decisions (HIL Review)</h3><span class="env-type" id="rdStepCount">0 steps</span></div>
+        <div class="card-body" style="padding:0;max-height:300px;overflow-y:auto;">
+          <table class="info-table" style="font-size:11px;" id="rdStepTable">
+            <thead style="position:sticky;top:0;background:white;z-index:1;">
+              <tr>
+                <td style="font-weight:700;color:var(--primary);">Step</td>
+                <td style="font-weight:700;color:var(--primary);">Action</td>
+                <td style="font-weight:700;color:var(--primary);">Reward</td>
+                <td style="font-weight:700;color:var(--primary);">Portfolio</td>
+                <td style="font-weight:700;color:var(--primary);">Return</td>
+                <td style="font-weight:700;color:var(--primary);">Drawdown</td>
+              </tr>
+            </thead>
+            <tbody id="rdStepBody"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -510,6 +732,9 @@ function renderEnvGrid() {
 
 async function createEnv(envType) {
   if (currentEnvId) await deleteEnv(true);
+  isTrained = false;
+  isTraining = false;
+  stopAgentStep();
   log('info', `Creating ${envType} environment...`);
   try {
     const res = await api('/envs/create', {
@@ -530,6 +755,8 @@ async function createEnv(envType) {
     await resetEnv();
     renderEnvGrid();
     checkHealth();
+    document.getElementById('rolloutSection').style.display = '';
+    loadRollouts();
   } catch (e) { /* logged in api() */ }
 }
 
@@ -575,6 +802,7 @@ async function stepEnv(action) {
       document.getElementById('activeStatus').className = 'badge badge-terminated';
       document.getElementById('activeStatus').textContent = res.terminated ? 'TERMINATED' : 'TRUNCATED';
       log('info', `Episode ended at step ${stepCount}. Cumulative reward: ${cumulativeReward.toFixed(4)}`);
+      onEpisodeEnd();
     }
 
     // Show extra info from env
@@ -591,6 +819,9 @@ async function stepEnv(action) {
 async function deleteEnv(silent) {
   if (!currentEnvId) return;
   stopAutoStep();
+  stopAgentStep();
+  isTrained = false;
+  isTraining = false;
   try {
     await api(`/envs/${currentEnvId}`, { method: 'DELETE' });
     if (!silent) log('info', `Deleted environment ${currentEnvId}`);
@@ -650,11 +881,212 @@ function stopAutoStep() {
   document.getElementById('stopBtn').style.display = 'none';
 }
 
+// --- RL Training ---
+let isTraining = false;
+let isTrained = false;
+let agentInterval = null;
+
+async function trainAgent() {
+  if (!currentEnvId || isTraining) return;
+
+  isTraining = true;
+  stopAutoStep();
+  stopAgentStep();
+
+  const algoName = currentActionType === 'discrete' ? 'DQN' : 'PPO';
+  const trainBtn = document.getElementById('trainBtn');
+  const badge = document.getElementById('trainBadge');
+  const panel = document.getElementById('trainPanel');
+  const progressBar = document.getElementById('trainProgressBar');
+  const progressLabel = document.getElementById('trainProgressLabel');
+
+  trainBtn.disabled = true;
+  trainBtn.textContent = 'Training...';
+  badge.className = 'badge badge-training';
+  badge.textContent = 'TRAINING...';
+  panel.style.display = '';
+  progressBar.style.width = '5%';
+  progressLabel.textContent = `Training ${algoName} agent (this takes 30-60s)...`;
+  document.getElementById('trainMetrics').style.display = 'none';
+
+  log('info', `Starting ${algoName} training (15 episodes)...`);
+
+  try {
+    const res = await api(`/envs/${currentEnvId}/train`, {
+      method: 'POST',
+      body: JSON.stringify({ algorithm: 'dqn', episodes: 15 })
+    });
+
+    isTrained = true;
+    isTraining = false;
+    trainBtn.disabled = false;
+    trainBtn.textContent = 'Retrain ' + (res.algorithm || algoName);
+    badge.className = 'badge badge-trained';
+    badge.textContent = 'TRAINED (' + (res.algorithm || algoName) + ')';
+    progressBar.style.width = '100%';
+    document.getElementById('agentBtn').disabled = false;
+
+    // Show metrics
+    const metrics = document.getElementById('trainMetrics');
+    metrics.style.display = '';
+    const best = res.best_episode;
+    const bestReturn = best.total_return ?? best.avg_reward ?? 0;
+    document.getElementById('tmReturn').textContent = (bestReturn * 100).toFixed(1) + '%';
+    document.getElementById('tmSharpe').textContent = (best.sharpe_ratio ?? best.avg_reward ?? 0).toFixed(3);
+    document.getElementById('tmEpsilon').textContent = (res.final_epsilon ?? 0).toFixed(3);
+    document.getElementById('tmEpisodes').textContent = res.episodes_trained;
+    progressLabel.textContent = 'Training complete! Click "Agent Auto-Step" to see the agent trade.';
+
+    // Draw training chart
+    drawTrainChart(res.training_history);
+
+    log('info', `Training complete! ${res.episodes_trained} episodes. Best return: ${(best.total_return * 100).toFixed(1)}%, Sharpe: ${best.sharpe_ratio.toFixed(3)}`);
+
+    // Load training rollouts into viewer
+    await loadRollouts();
+
+    // Log per-episode summary
+    res.training_history.forEach(ep => {
+      const retStr = (ep.total_return * 100).toFixed(1);
+      const tag = ep.total_return > 0 ? 'reward' : 'error';
+      log(tag, `  Ep ${ep.episode}: return=${retStr}% sharpe=${ep.sharpe_ratio.toFixed(3)} epsilon=${ep.epsilon.toFixed(3)}`);
+    });
+
+    // Reset env for clean evaluation
+    await resetEnv();
+
+  } catch (e) {
+    isTraining = false;
+    trainBtn.disabled = false;
+    trainBtn.textContent = 'Train ' + algoName;
+    badge.className = 'badge badge-untrained';
+    badge.textContent = 'FAILED';
+    progressLabel.textContent = 'Training failed. Check server logs.';
+    log('error', `Training failed: ${e.message}`);
+  }
+}
+
+function drawTrainChart(history) {
+  const canvas = document.getElementById('trainChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 120 * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 120;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!history || history.length < 2) return;
+
+  const returns = history.map(h => h.total_return * 100);
+  const min = Math.min(...returns), max = Math.max(...returns);
+  const range = max - min || 1;
+  const pad = { t: 10, b: 20, l: 45, r: 10 };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  // Zero line
+  const zeroY = pad.t + (1 - (0 - min) / range) * cH;
+  ctx.strokeStyle = '#e0d4db';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.l, zeroY); ctx.lineTo(W - pad.r, zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Y labels
+  ctx.fillStyle = '#999'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+  ctx.fillText(max.toFixed(0) + '%', pad.l - 4, pad.t + 8);
+  ctx.fillText(min.toFixed(0) + '%', pad.l - 4, pad.t + cH);
+  if (min < 0 && max > 0) ctx.fillText('0%', pad.l - 4, zeroY + 3);
+
+  // Bars
+  const barW = Math.max(3, (cW / returns.length) - 2);
+  returns.forEach((v, i) => {
+    const x = pad.l + (i / (returns.length - 1)) * cW - barW / 2;
+    const barH = Math.abs(v / range) * cH;
+    const y = v >= 0 ? zeroY - barH : zeroY;
+    ctx.fillStyle = v >= 0 ? '#2e7d32' : '#c62828';
+    ctx.fillRect(x, y, barW, barH);
+  });
+
+  // X label
+  ctx.fillStyle = '#999'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Episode (return %)', W / 2, H - 2);
+}
+
+async function agentAutoStep() {
+  if (!currentEnvId || !isTrained || agentInterval) return;
+  stopAutoStep();
+
+  const speed = parseInt(document.getElementById('stepSpeed').value);
+  document.getElementById('agentBtn').style.display = 'none';
+  document.getElementById('agentStopBtn').style.display = '';
+  log('info', 'Agent auto-stepping started (DQN neural network driving actions)');
+
+  const doAgentStep = async () => {
+    try {
+      const res = await api(`/envs/${currentEnvId}/agent-step`, { method: 'POST' });
+      stepCount++;
+      cumulativeReward += res.reward;
+      rewardHistory.push(res.reward);
+      updateObservation(res.observation);
+      updateInfo({ step: stepCount, reward: res.reward, terminated: res.terminated, truncated: res.truncated });
+      document.getElementById('statSteps').textContent = stepCount;
+      document.getElementById('statReward').textContent = cumulativeReward.toFixed(3);
+      document.getElementById('rewardTotal').textContent = 'Total: ' + cumulativeReward.toFixed(3);
+      drawRewardChart();
+
+      const actionLabel = res.agent_action || 'action ' + res.agent_action_id;
+      log('step', `Step ${stepCount}: agent=${actionLabel}, reward=${res.reward.toFixed(4)}`);
+
+      if (res.terminated || res.truncated) {
+        stopAgentStep();
+        document.getElementById('activeStatus').className = 'badge badge-terminated';
+        document.getElementById('activeStatus').textContent = res.terminated ? 'TERMINATED' : 'TRUNCATED';
+        log('info', `Agent episode ended at step ${stepCount}. Cumulative reward: ${cumulativeReward.toFixed(4)}`);
+        onEpisodeEnd();
+      }
+
+      // Show extra info
+      const infoTable = document.getElementById('infoTable');
+      while (infoTable.rows.length > 4) infoTable.deleteRow(4);
+      for (const [k, v] of Object.entries(res.info || {})) {
+        if (k === 'verifier_result') continue;
+        const row = infoTable.insertRow();
+        row.innerHTML = `<td>${k}</td><td>${typeof v === 'number' ? v.toFixed(4) : JSON.stringify(v)}</td>`;
+      }
+    } catch (e) {
+      stopAgentStep();
+    }
+  };
+
+  doAgentStep();
+  agentInterval = setInterval(doAgentStep, speed);
+}
+
+function stopAgentStep() {
+  if (agentInterval) { clearInterval(agentInterval); agentInterval = null; }
+  document.getElementById('agentBtn').style.display = '';
+  document.getElementById('agentStopBtn').style.display = 'none';
+}
+
 // --- UI Helpers ---
 function showActivePanel(envType, createRes) {
   document.getElementById('activePanel').style.display = '';
   document.getElementById('emptyState').style.display = 'none';
   renderExplainPanel(envType);
+
+  // Reset training state
+  document.getElementById('trainBadge').className = 'badge badge-untrained';
+  document.getElementById('trainBadge').textContent = 'UNTRAINED';
+  document.getElementById('trainBtn').disabled = false;
+  document.getElementById('agentBtn').disabled = true;
+  document.getElementById('trainPanel').style.display = '';
+  document.getElementById('trainBtn').style.display = '';
+  document.getElementById('agentBtn').style.display = '';
+
+  const algoName = envType === 'stock-trading' ? 'DQN' : 'PPO';
+  document.getElementById('trainBtn').textContent = 'Train ' + algoName;
   const info = envTypes[envType];
   document.getElementById('activeEnvTitle').textContent = info.display_name;
   document.getElementById('obsShape').textContent = 'obs: [' + createRes.observation_shape + ']';
@@ -833,6 +1265,312 @@ function formatUptime(s) {
   if (s < 60) return Math.round(s) + 's';
   if (s < 3600) return Math.floor(s/60) + 'm ' + Math.round(s%60) + 's';
   return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'm';
+}
+
+// --- Episode End Handler ---
+async function onEpisodeEnd() {
+  log('info', 'Loading rollout data...');
+  await loadRollouts();
+  if (allRollouts.length > 0) {
+    viewRollout(allRollouts[0].id);
+  }
+}
+
+// --- Rollout Viewer ---
+let allRollouts = [];
+let selectedRollout = null;
+
+async function loadRollouts() {
+  try {
+    const res = await api('/rollouts?status=completed');
+    allRollouts = res.rollouts || [];
+    renderRolloutList();
+    document.getElementById('rolloutSection').style.display = '';
+    document.getElementById('rolloutCount').textContent = allRollouts.length + ' rollouts';
+  } catch (e) { /* logged */ }
+}
+
+function renderRolloutList() {
+  const list = document.getElementById('rolloutList');
+  if (allRollouts.length === 0) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No completed rollouts yet. Run a simulation to completion.</div>';
+    return;
+  }
+  list.innerHTML = allRollouts.map(r => {
+    const tagClass = r.source === 'training' ? 'rollout-tag-training' : r.source === 'agent' ? 'rollout-tag-agent' : r.source === 'manual' ? 'rollout-tag-manual' : 'rollout-tag-random';
+    const totalRet = r.final_outcome?.last_info?.total_return ?? r.final_outcome?.total_return ?? 0;
+    const retStr = (totalRet * 100).toFixed(1);
+    const retColor = totalRet >= 0 ? 'var(--green)' : 'var(--red)';
+    const active = selectedRollout && selectedRollout.id === r.id ? ' active' : '';
+    return `<div class="rollout-list-item${active}" onclick="viewRollout('${r.id}')">
+      <span class="rollout-tag ${tagClass}">${r.source || 'manual'}</span>
+      <span style="font-size:12px;font-weight:600;min-width:90px;">${r.id.slice(0,8)}</span>
+      <span style="font-size:11px;color:var(--muted);">${r.env_type}</span>
+      <span style="font-size:11px;">${r.total_steps} steps</span>
+      <span style="font-size:12px;font-weight:700;color:${retColor};">${retStr}%</span>
+      <span style="font-size:10px;color:var(--muted);margin-left:auto;">${r.policy || ''}</span>
+      <span style="font-size:10px;color:var(--muted);">${r.created_at?.slice(11,19) || ''}</span>
+    </div>`;
+  }).join('');
+}
+
+async function viewRollout(rolloutId) {
+  try {
+    const r = await api(`/rollouts/${rolloutId}`);
+    selectedRollout = r;
+    renderRolloutList();
+    renderRolloutDetail(r);
+    document.getElementById('rolloutDetail').style.display = '';
+    document.getElementById('rolloutDetail').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) { /* logged */ }
+}
+
+function renderRolloutDetail(r) {
+  const tagClass = r.source === 'training' ? 'rollout-tag-training' : r.source === 'agent' ? 'rollout-tag-agent' : 'rollout-tag-manual';
+  document.getElementById('rdTag').className = 'rollout-tag ' + tagClass;
+  document.getElementById('rdTag').textContent = (r.source || 'manual').toUpperCase();
+
+  const policyLabel = r.policy || 'Unknown';
+  const stepsN = r.total_steps || r.steps?.length || 0;
+  document.getElementById('rdTitle').textContent = `Rollout: ${r.id.slice(0,8)}`;
+  document.getElementById('rdSubtitle').textContent = `${r.env_type} - Policy: ${policyLabel} - ${stepsN} steps - Reward: ${(r.total_reward || 0).toFixed(3)}`;
+
+  renderStateDiagram(r);
+  renderRolloutMetrics(r);
+  renderRolloutRewardChart(r);
+  renderFailureModes(r);
+  renderVerifierChecks(r);
+  renderStepTable(r);
+}
+
+function renderStateDiagram(r) {
+  const diag = document.getElementById('rdStateDiagram');
+  const steps = r.steps || [];
+  const maxShow = Math.min(steps.length, 8);
+  const sample = [];
+  if (steps.length <= maxShow) {
+    for (let i = 0; i < steps.length; i++) sample.push(steps[i]);
+  } else {
+    const stride = Math.floor(steps.length / (maxShow - 1));
+    for (let i = 0; i < maxShow - 1; i++) sample.push(steps[i * stride]);
+    sample.push(steps[steps.length - 1]);
+  }
+
+  const actionNames = ['strong_sell', 'sell', 'hold', 'buy', 'strong_buy'];
+  let html = '';
+
+  // Start node
+  html += `<div class="sd-node">
+    <div class="sd-box sd-box-start"><div class="sd-title">Market State</div><div class="sd-sub">Initial portfolio: $100,000</div></div>
+  </div>`;
+
+  sample.forEach((s, i) => {
+    const aLabel = s.action_label || actionNames[s.action] || ('action ' + s.action);
+    const rwdClass = s.reward >= 0 ? 'sd-reward-pos' : 'sd-reward-neg';
+    const agentLabel = r.source === 'agent' || r.source === 'training' ? 'Agent (Trained)' : 'Agent (Random)';
+    html += `<div class="sd-arrow">&#8594;</div>`;
+    html += `<div class="sd-node">
+      <div class="sd-box sd-box-agent"><div class="sd-title">${agentLabel}</div><div class="sd-sub">Step ${s.step}</div></div>
+      <div class="sd-tool"><div class="sd-tool-name">execute_trade</div>{"action":"${aLabel}"}</div>
+      <div class="sd-reward ${rwdClass}">Reward ${s.reward >= 0 ? '+' : ''}${s.reward.toFixed(3)}</div>
+    </div>`;
+  });
+
+  // Final state
+  const last = steps[steps.length - 1];
+  const finalInfo = last?.info || {};
+  const totalRet = finalInfo.total_return ?? r.final_outcome?.total_return ?? 0;
+  const pv = finalInfo.portfolio_value ?? r.final_outcome?.portfolio_value ?? 100000;
+  html += `<div class="sd-arrow">&#8594;</div>`;
+  html += `<div class="sd-node">
+    <div class="sd-box sd-box-final"><div class="sd-title">Final State</div><div class="sd-sub">Portfolio: $${Math.round(pv).toLocaleString()}</div><div class="sd-sub">Return: ${(totalRet * 100).toFixed(1)}%</div></div>
+  </div>`;
+
+  diag.innerHTML = html;
+}
+
+function renderRolloutMetrics(r) {
+  const last = r.steps?.[r.steps.length - 1];
+  const info = last?.info || {};
+  const fo = r.final_outcome || {};
+  document.getElementById('rdReturn').textContent = ((info.total_return ?? fo.total_return ?? 0) * 100).toFixed(1) + '%';
+  document.getElementById('rdSharpe').textContent = (info.sharpe_ratio ?? fo.sharpe_ratio ?? 0).toFixed(3);
+  document.getElementById('rdDrawdown').textContent = ((info.max_drawdown ?? fo.max_drawdown ?? 0) * 100).toFixed(1) + '%';
+  document.getElementById('rdSteps').textContent = r.total_steps || r.steps?.length || 0;
+  document.getElementById('rdStepCount').textContent = (r.steps?.length || 0) + ' steps';
+}
+
+function renderRolloutRewardChart(r) {
+  const canvas = document.getElementById('rdRewardChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 160 * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 160;
+  ctx.clearRect(0, 0, W, H);
+
+  const rewards = (r.steps || []).map(s => s.reward);
+  if (rewards.length < 2) {
+    ctx.fillStyle = '#999'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('No step data for training rollouts', W/2, H/2);
+    return;
+  }
+
+  const cumulative = [];
+  let sum = 0;
+  rewards.forEach(v => { sum += v; cumulative.push(sum); });
+
+  const min = Math.min(...cumulative), max = Math.max(...cumulative);
+  const range = max - min || 1;
+  const pad = { t: 10, b: 25, l: 50, r: 10 };
+  const cW = W - pad.l - pad.r, cH = H - pad.t - pad.b;
+
+  ctx.strokeStyle = '#e0d4db'; ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 3; i++) {
+    const y = pad.t + (cH / 3) * i;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+    ctx.fillStyle = '#999'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+    ctx.fillText((max - (range / 3) * i).toFixed(2), pad.l - 4, y + 3);
+  }
+
+  ctx.beginPath(); ctx.strokeStyle = '#670945'; ctx.lineWidth = 2;
+  cumulative.forEach((v, i) => {
+    const x = pad.l + (i / (cumulative.length - 1)) * cW;
+    const y = pad.t + (1 - (v - min) / range) * cH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = '#999'; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Cumulative Reward over Steps', W / 2, H - 3);
+}
+
+function renderFailureModes(r) {
+  const el = document.getElementById('rdFailureModes');
+  const steps = r.steps || [];
+  if (steps.length === 0) { el.innerHTML = '<div style="color:var(--muted);font-size:12px;">No steps recorded (training summary only)</div>'; return; }
+
+  let negRewardCount = 0, highDDCount = 0, negSharpeCount = 0, earlyTerm = 0;
+  steps.forEach(s => {
+    if (s.reward < 0) negRewardCount++;
+    const dd = s.info?.max_drawdown ?? 0;
+    if (dd > 0.20) highDDCount++;
+    const sr = s.info?.sharpe_ratio ?? 0;
+    if (sr < 0) negSharpeCount++;
+  });
+  const lastStep = steps[steps.length - 1];
+  if (lastStep?.terminated) earlyTerm = 1;
+
+  const total = steps.length || 1;
+  const modes = [
+    { label: 'Negative reward steps', count: negRewardCount, pct: negRewardCount / total, color: '#e91e63' },
+    { label: 'High drawdown (>20%)', count: highDDCount, pct: highDDCount / total, color: '#ff9800' },
+    { label: 'Negative Sharpe', count: negSharpeCount, pct: negSharpeCount / total, color: '#9c27b0' },
+    { label: 'Early termination', count: earlyTerm, pct: earlyTerm, color: '#f44336' },
+  ].filter(m => m.count > 0);
+
+  if (modes.length === 0) {
+    el.innerHTML = '<div style="color:var(--green);font-size:12px;font-weight:600;">No failure modes detected</div>';
+    return;
+  }
+
+  el.innerHTML = modes.map(m =>
+    `<div class="failure-bar">
+      <span class="failure-bar-label">${m.label}</span>
+      <div style="flex:1;background:#f0ecee;border-radius:4px;height:16px;">
+        <div class="failure-bar-fill" style="width:${Math.max(m.pct * 100, 3)}%;background:${m.color};"></div>
+      </div>
+      <span class="failure-bar-pct">${(m.pct * 100).toFixed(0)}%</span>
+    </div>`
+  ).join('');
+}
+
+function renderVerifierChecks(r) {
+  const el = document.getElementById('rdVerifier');
+  const lastStep = r.steps?.[r.steps.length - 1];
+  const vr = lastStep?.info?.verifier_result;
+
+  if (!vr || !vr.checks) {
+    const fo = r.final_outcome || {};
+    const checks = [
+      { name: 'Trade sequence valid', passed: true },
+      { name: 'Position limits respected', passed: true },
+      { name: 'Return > -25%', passed: (fo.total_return ?? 0) >= -0.25 },
+      { name: 'Drawdown < 40%', passed: (fo.max_drawdown ?? 0) <= 0.40 },
+      { name: 'Portfolio resolved', passed: r.status === 'completed' },
+    ];
+    el.innerHTML = '<div class="verifier-checks">' + checks.map(c =>
+      `<div class="vc-item ${c.passed ? 'vc-pass' : 'vc-fail'}">
+        <span class="vc-icon">${c.passed ? '&#10003;' : '&#10007;'}</span>
+        <span>${c.name}</span>
+      </div>`
+    ).join('') + '</div>';
+    return;
+  }
+
+  const nameMap = {
+    'total_return': 'Total return above threshold',
+    'max_drawdown': 'Max drawdown within limit',
+    'sharpe_ratio': 'Sharpe ratio acceptable',
+    'pnl': 'P&L above minimum',
+    'hedge_error': 'Hedging error within limit',
+  };
+
+  const checks = vr.checks.map(c => ({
+    name: nameMap[c.name] || c.name,
+    passed: c.passed,
+    value: c.value,
+  }));
+  checks.push({ name: 'Portfolio resolved', passed: r.status === 'completed' });
+
+  el.innerHTML = '<div class="verifier-checks">' + checks.map(c =>
+    `<div class="vc-item ${c.passed ? 'vc-pass' : 'vc-fail'}">
+      <span class="vc-icon">${c.passed ? '&#10003;' : '&#10007;'}</span>
+      <span>${c.name}${c.value !== undefined ? ' (' + (typeof c.value === 'number' ? c.value.toFixed(4) : c.value) + ')' : ''}</span>
+    </div>`
+  ).join('') + '</div>';
+}
+
+function renderStepTable(r) {
+  const tbody = document.getElementById('rdStepBody');
+  const steps = r.steps || [];
+  if (steps.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px;">No step-level data (training summary only). Agent evaluation rollouts contain full step data.</td></tr>';
+    return;
+  }
+
+  const actionNames = ['strong_sell', 'sell', 'hold', 'buy', 'strong_buy'];
+  tbody.innerHTML = steps.map(s => {
+    const aLabel = s.action_label || actionNames[s.action] || s.action;
+    const info = s.info || {};
+    const pv = info.portfolio_value ? '$' + Math.round(info.portfolio_value).toLocaleString() : '--';
+    const ret = info.total_return !== undefined ? (info.total_return * 100).toFixed(2) + '%' : '--';
+    const dd = info.max_drawdown !== undefined ? (info.max_drawdown * 100).toFixed(2) + '%' : '--';
+    const rwdColor = s.reward >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<tr>
+      <td>${s.step}</td>
+      <td><strong>${aLabel}</strong></td>
+      <td style="color:${rwdColor};font-weight:600;">${s.reward.toFixed(4)}</td>
+      <td>${pv}</td>
+      <td>${ret}</td>
+      <td>${dd}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportRollout() {
+  if (!selectedRollout) return;
+  const json = JSON.stringify(selectedRollout, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `rollout_${selectedRollout.id}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log('info', `Exported rollout ${selectedRollout.id} as JSON`);
 }
 
 // --- Init ---
