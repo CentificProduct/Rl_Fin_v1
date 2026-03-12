@@ -32,8 +32,8 @@ from agents.ppo_agent import PPOTrader
 ENV_REGISTRY = {
     "stock-trading": {
         "class": StockTradingEnv,
-        "display_name": "Stock Trading Environment",
-        "description": "Single-asset trading with discrete/continuous actions",
+        "display_name": "Stock Trading",
+        "description": "Single-asset trading with discrete buy/sell/hold actions",
         "tools": [
             {"name": "get_market_state", "description": "Fetch price, volume, and technical indicators"},
             {"name": "execute_trade", "description": "Buy/sell/hold with position sizing"},
@@ -45,8 +45,8 @@ ENV_REGISTRY = {
     },
     "portfolio-allocation": {
         "class": PortfolioAllocationEnv,
-        "display_name": "Portfolio Allocation Environment",
-        "description": "Multi-asset portfolio weight optimization",
+        "display_name": "Portfolio Allocation",
+        "description": "Multi-asset portfolio weight optimization across 5 correlated assets",
         "tools": [
             {"name": "get_asset_returns", "description": "Multi-asset return history with lookback window"},
             {"name": "rebalance_portfolio", "description": "Set target portfolio weights (sum to 1)"},
@@ -58,8 +58,8 @@ ENV_REGISTRY = {
     },
     "options-pricing": {
         "class": OptionsPricingEnv,
-        "display_name": "Options Pricing & Hedging Environment",
-        "description": "Dynamic delta hedging for options positions",
+        "display_name": "Options Pricing & Hedging",
+        "description": "Dynamic delta hedging for short call option positions",
         "tools": [
             {"name": "get_option_greeks", "description": "Delta, gamma, and current hedge ratio"},
             {"name": "adjust_hedge", "description": "Set hedge ratio (0=none, 1=full delta)"},
@@ -68,6 +68,42 @@ ENV_REGISTRY = {
         "observation_dim": 7,
         "action_type": "continuous",
         "action_dim": 1,
+    },
+}
+
+COMPANY_REGISTRY = {
+    "hedge-fund": {
+        "id": "hedge-fund",
+        "name": "Hedge Fund",
+        "description": "Quantitative hedge fund with stock trading, portfolio management, and derivatives hedging workflows",
+        "icon": "building",
+        "environments": ["stock-trading", "portfolio-allocation", "options-pricing"],
+        "workflows": [
+            {
+                "id": "stock-trading",
+                "name": "Stock Trading",
+                "description": "Single-asset directional trading with technical indicators",
+                "algorithm": "DQN (Double + Dueling)",
+                "scenarios_count": 10,
+                "verifiers_count": 10,
+            },
+            {
+                "id": "portfolio-allocation",
+                "name": "Portfolio Allocation",
+                "description": "Multi-asset weight optimization across correlated assets",
+                "algorithm": "PPO (Continuous)",
+                "scenarios_count": 10,
+                "verifiers_count": 10,
+            },
+            {
+                "id": "options-pricing",
+                "name": "Options Pricing & Hedging",
+                "description": "Dynamic delta hedging for options positions",
+                "algorithm": "PPO (Continuous)",
+                "scenarios_count": 10,
+                "verifiers_count": 10,
+            },
+        ],
     },
 }
 
@@ -320,8 +356,79 @@ async def health():
     )
 
 
+@app.get("/companies")
+async def list_companies():
+    """List all companies and their environment workflows."""
+    return {
+        cid: {
+            "id": company["id"],
+            "name": company["name"],
+            "description": company["description"],
+            "icon": company.get("icon", "building"),
+            "workflows": company["workflows"],
+            "total_environments": len(company["environments"]),
+            "total_scenarios": sum(w["scenarios_count"] for w in company["workflows"]),
+            "total_verifiers": sum(w["verifiers_count"] for w in company["workflows"]),
+        }
+        for cid, company in COMPANY_REGISTRY.items()
+    }
+
+
+@app.get("/companies/{company_id}")
+async def get_company(company_id: str):
+    """Get a specific company with its environment list."""
+    if company_id not in COMPANY_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Company '{company_id}' not found")
+    company = COMPANY_REGISTRY[company_id]
+    envs = []
+    for env_id in company["environments"]:
+        entry = ENV_REGISTRY[env_id]
+        envs.append({
+            "id": env_id,
+            "display_name": entry["display_name"],
+            "description": entry["description"],
+            "tools": entry["tools"],
+            "observation_dim": entry["observation_dim"],
+            "action_type": entry["action_type"],
+            "action_dim": entry["action_dim"],
+        })
+    return {
+        "id": company["id"],
+        "name": company["name"],
+        "description": company["description"],
+        "workflows": company["workflows"],
+        "environments": envs,
+    }
+
+
+@app.get("/companies/{company_id}/environments")
+async def list_company_environments(company_id: str):
+    """List environments for a specific company as a selectable list."""
+    if company_id not in COMPANY_REGISTRY:
+        raise HTTPException(status_code=404, detail=f"Company '{company_id}' not found")
+    company = COMPANY_REGISTRY[company_id]
+    result = []
+    for env_id in company["environments"]:
+        entry = ENV_REGISTRY[env_id]
+        workflow = next((w for w in company["workflows"] if w["id"] == env_id), {})
+        result.append({
+            "id": env_id,
+            "display_name": entry["display_name"],
+            "description": entry["description"],
+            "algorithm": workflow.get("algorithm", ""),
+            "action_type": entry["action_type"],
+            "action_dim": entry["action_dim"],
+            "observation_dim": entry["observation_dim"],
+            "scenarios_count": workflow.get("scenarios_count", 0),
+            "verifiers_count": workflow.get("verifiers_count", 0),
+            "tools": entry["tools"],
+        })
+    return {"company": company["name"], "environments": result}
+
+
 @app.get("/envs/list")
 async def list_env_types():
+    """List all environments (flat view, backward compatible)."""
     return {
         name: {
             "display_name": entry["display_name"],

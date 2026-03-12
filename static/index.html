@@ -343,6 +343,38 @@
   .failure-bar-label { min-width: 140px; color: var(--muted); }
   .failure-bar-pct { font-weight: 600; min-width: 40px; text-align: right; }
 
+  /* Company view */
+  .company-banner {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 50%, #2c1445 100%);
+    color: white; border-radius: var(--radius); padding: 24px 28px; margin-bottom: 20px;
+  }
+  .company-banner h2 { font-family: Georgia, serif; font-size: 22px; margin-bottom: 4px; }
+  .company-banner .company-desc { font-size: 13px; opacity: 0.85; }
+  .company-banner .company-stats { display: flex; gap: 24px; margin-top: 12px; }
+  .company-banner .cstat { text-align: center; }
+  .company-banner .cstat .cv { font-size: 22px; font-weight: 700; }
+  .company-banner .cstat .cl { font-size: 10px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .env-list-item {
+    display: flex; align-items: center; gap: 16px; padding: 14px 18px;
+    border-bottom: 1px solid var(--border); cursor: pointer; transition: all 0.15s;
+  }
+  .env-list-item:hover { background: var(--primary-pale); }
+  .env-list-item.active { background: var(--primary-pale); border-left: 3px solid var(--primary); }
+  .env-list-item .env-num {
+    width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-weight: 700; font-size: 14px;
+    background: var(--primary-pale); color: var(--primary); border: 1.5px solid var(--primary); flex-shrink: 0;
+  }
+  .env-list-item .env-info { flex: 1; }
+  .env-list-item .env-info .env-name { font-size: 14px; font-weight: 600; color: var(--text); }
+  .env-list-item .env-info .env-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .env-list-item .env-meta { display: flex; gap: 6px; flex-shrink: 0; }
+  .env-list-item .meta-tag {
+    font-size: 9px; padding: 2px 8px; border-radius: 8px; font-weight: 600;
+    background: var(--primary-pale); color: var(--primary); border: 1px solid var(--border);
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -371,11 +403,26 @@
     <div class="stat-box"><div class="stat-value" id="statUptime">0s</div><div class="stat-label">Server Uptime</div></div>
   </div>
 
-  <!-- Environment selection -->
-  <div class="section-title">Select Environment <div class="line"></div></div>
-  <div class="grid-3" id="envGrid">
-    <!-- Populated dynamically -->
+  <!-- Company + Environment List -->
+  <div id="companyBanner" class="company-banner">
+    <h2 id="companyName">Hedge Fund</h2>
+    <div class="company-desc" id="companyDesc">Quantitative hedge fund with stock trading, portfolio management, and derivatives hedging workflows</div>
+    <div class="company-stats">
+      <div class="cstat"><div class="cv" id="companyEnvCount">3</div><div class="cl">Environments</div></div>
+      <div class="cstat"><div class="cv" id="companyScenarios">30</div><div class="cl">Scenarios</div></div>
+      <div class="cstat"><div class="cv" id="companyVerifiers">30</div><div class="cl">Verifiers</div></div>
+    </div>
   </div>
+
+  <div class="section-title">Select Environment <div class="line"></div></div>
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-body" style="padding:0;" id="envList">
+      <!-- Populated dynamically as a list -->
+    </div>
+  </div>
+
+  <!-- Hidden grid for backward compat -->
+  <div class="grid-3" id="envGrid" style="display:none;"></div>
 
   <!-- Environment explanation panel -->
   <div id="explainPanel" class="explain-panel" style="display:none;">
@@ -700,35 +747,58 @@ async function checkHealth() {
 async function loadEnvTypes() {
   try {
     envTypes = await api('/envs/list');
-    renderEnvGrid();
+
+    // Load company data
+    try {
+      const companies = await api('/companies');
+      const hf = companies['hedge-fund'];
+      if (hf) {
+        document.getElementById('companyName').textContent = hf.name;
+        document.getElementById('companyDesc').textContent = hf.description;
+        document.getElementById('companyEnvCount').textContent = hf.total_environments;
+        document.getElementById('companyScenarios').textContent = hf.total_scenarios;
+        document.getElementById('companyVerifiers').textContent = hf.total_verifiers;
+      }
+    } catch (e) { /* company endpoint not available, use defaults */ }
+
+    renderEnvList();
   } catch (e) {
-    document.getElementById('envGrid').innerHTML =
-      '<div class="empty-state" style="grid-column:1/-1;padding:24px;"><p>Failed to load environments. Is the server running?</p></div>';
+    document.getElementById('envList').innerHTML =
+      '<div style="padding:24px;text-align:center;color:var(--muted);">Failed to load environments. Is the server running?</div>';
   }
 }
 
-function renderEnvGrid() {
+function renderEnvList() {
   const icons = { 'stock-trading': '\u{1F4C8}', 'portfolio-allocation': '\u{1F4CA}', 'options-pricing': '\u{1F3AF}' };
-  const grid = document.getElementById('envGrid');
-  grid.innerHTML = '';
+  const algos = { 'stock-trading': 'DQN', 'portfolio-allocation': 'PPO', 'options-pricing': 'PPO' };
+  const list = document.getElementById('envList');
+  list.innerHTML = '';
+  let idx = 1;
   for (const [name, info] of Object.entries(envTypes)) {
-    const card = document.createElement('div');
-    card.className = 'env-select-card' + (currentEnvType === name ? ' active' : '');
-    card.onclick = () => createEnv(name);
-    card.innerHTML = `
-      <div class="icon">${icons[name] || '\u{1F9EA}'}</div>
-      <h3>${info.display_name}</h3>
-      <p>${info.description}</p>
-      <div style="margin-top:8px;font-size:11px;color:var(--muted);">
-        Action: <strong>${info.action_type}</strong> | Obs dim: <strong>${info.observation_dim}</strong>
+    const active = currentEnvType === name ? ' active' : '';
+    const algo = algos[name] || 'RL';
+    const item = document.createElement('div');
+    item.className = 'env-list-item' + active;
+    item.onclick = () => createEnv(name);
+    item.innerHTML = `
+      <div class="env-num">${idx}</div>
+      <div style="font-size:24px;">${icons[name] || '\u{1F9EA}'}</div>
+      <div class="env-info">
+        <div class="env-name">${info.display_name}</div>
+        <div class="env-desc">${info.description}</div>
       </div>
-      <div class="tools">
-        ${info.tools.map(t => `<span class="tool-tag">${t.name}</span>`).join('')}
+      <div class="env-meta">
+        <span class="meta-tag">${algo}</span>
+        <span class="meta-tag">${info.action_type}</span>
+        <span class="meta-tag">obs: ${info.observation_dim}</span>
       </div>
     `;
-    grid.appendChild(card);
+    list.appendChild(item);
+    idx++;
   }
 }
+
+function renderEnvGrid() { renderEnvList(); }
 
 async function createEnv(envType) {
   if (currentEnvId) await deleteEnv(true);
