@@ -460,7 +460,7 @@
     <!-- ============ TRAINING TAB ============ -->
     <div id="trainingView">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
-        <!-- Left: Training config + progress -->
+        <!-- Left: Config + Progress + Before/After -->
         <div>
           <div class="card" style="margin-bottom:16px;">
             <div class="card-header" style="background:#1565c0;"><h3 style="color:white;">Training Configuration</h3></div>
@@ -486,7 +486,7 @@
             </div>
           </div>
 
-          <!-- Training progress panel -->
+          <!-- Training progress -->
           <div class="train-panel" id="trainPanel" style="display:none;">
             <div class="train-header">
               <h3>Training Progress</h3>
@@ -504,14 +504,39 @@
               <div class="chart-container-sm"><canvas id="trainChart"></canvas></div>
             </div>
           </div>
+
+          <!-- Before/After Comparison (Rollout Summary) -->
+          <div class="card" id="beforeAfterCard" style="margin-top:16px;display:none;">
+            <div class="card-header" style="background:var(--primary);"><h3 style="color:white;">Rollout Summary: Before vs After Training</h3></div>
+            <div class="card-body">
+              <table class="info-table" style="font-size:13px;">
+                <thead><tr>
+                  <td style="font-weight:700;color:var(--primary);">Metric</td>
+                  <td style="font-weight:700;color:var(--red);">Before (Baseline)</td>
+                  <td style="font-weight:700;color:var(--green);">After (Trained)</td>
+                  <td style="font-weight:700;color:var(--primary);">Change</td>
+                </tr></thead>
+                <tbody id="beforeAfterBody"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        <!-- Right: Training log -->
+        <!-- Right: Training Runs Log + Training Console -->
         <div>
+          <!-- Multi-run training history -->
           <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><h3>Training Runs</h3><span class="env-type" id="trainRunCount">0 runs</span></div>
+            <div class="card-body" style="padding:0;max-height:160px;overflow-y:auto;" id="trainRunList">
+              <div style="padding:16px;text-align:center;color:var(--muted);font-size:12px;">No training runs yet. Click "Start Training" to begin.</div>
+            </div>
+          </div>
+
+          <!-- Training console log -->
+          <div class="card">
             <div class="card-header"><h3>Training Log</h3><button class="btn btn-sm btn-outline" onclick="clearLog()">Clear</button></div>
             <div class="card-body" style="padding:0;">
-              <div class="log-area" id="logArea" style="min-height:300px;">
+              <div class="log-area" id="logArea" style="min-height:220px;">
                 <div class="log-info">Select an environment and click "Start Training" to begin.</div>
               </div>
             </div>
@@ -865,6 +890,8 @@ async function createEnv(envType) {
   if (currentEnvId) await deleteEnv(true);
   isTrained = false;
   isTraining = false;
+  trainingRuns = [];
+  baselineMetrics = null;
   stopAgentStep();
   log('info', `Creating ${envType} environment...`);
   try {
@@ -1047,6 +1074,8 @@ function switchTab(tab) {
 let isTraining = false;
 let isTrained = false;
 let agentInterval = null;
+let trainingRuns = [];
+let baselineMetrics = null;
 
 async function trainAgent() {
   if (!currentEnvId || isTraining) return;
@@ -1071,10 +1100,16 @@ async function trainAgent() {
   progressLabel.textContent = `Training ${algoName} agent (this takes 30-60s)...`;
   document.getElementById('trainMetrics').style.display = 'none';
 
-  log('info', `Starting ${algoName} training (15 episodes)...`);
+  const numEpisodes = parseInt(document.getElementById('trainEpisodes').value) || 15;
+  log('info', `Starting ${algoName} training (${numEpisodes} episodes)...`);
+
+  // Capture baseline metrics before training
+  if (!baselineMetrics) {
+    baselineMetrics = { total_return: 0, sharpe_ratio: 0, max_drawdown: 0, portfolio_value: 100000 };
+    log('info', 'Baseline captured: untrained random policy');
+  }
 
   try {
-    const numEpisodes = parseInt(document.getElementById('trainEpisodes').value) || 15;
     const res = await api(`/envs/${currentEnvId}/train`, {
       method: 'POST',
       body: JSON.stringify({ algorithm: 'dqn', episodes: numEpisodes })
@@ -1098,15 +1133,32 @@ async function trainAgent() {
     document.getElementById('tmSharpe').textContent = (best.sharpe_ratio ?? best.avg_reward ?? 0).toFixed(3);
     document.getElementById('tmEpsilon').textContent = (res.final_epsilon ?? 0).toFixed(3);
     document.getElementById('tmEpisodes').textContent = res.episodes_trained;
-    progressLabel.textContent = 'Training complete! Switching to Simulation tab...';
-
-    // Auto-switch to simulation tab after training
-    setTimeout(() => switchTab('simulation'), 1500);
+    progressLabel.textContent = 'Training complete! Switch to Simulation tab to run the trained agent.';
 
     // Draw training chart
     drawTrainChart(res.training_history);
 
-    log('info', `Training complete! ${res.episodes_trained} episodes. Best return: ${(best.total_return * 100).toFixed(1)}%, Sharpe: ${best.sharpe_ratio.toFixed(3)}`);
+    log('info', `Training complete! ${res.episodes_trained} episodes. Best return: ${(bestReturn * 100).toFixed(1)}%, Sharpe: ${(best.sharpe_ratio ?? 0).toFixed(3)}`);
+
+    // Add to multi-run list
+    const runRecord = {
+      id: trainingRuns.length + 1,
+      algorithm: res.algorithm || algoName,
+      episodes: res.episodes_trained,
+      best_return: bestReturn,
+      best_sharpe: best.sharpe_ratio ?? 0,
+      final_epsilon: res.final_epsilon ?? 0,
+      timestamp: new Date().toLocaleTimeString(),
+      history: res.training_history,
+    };
+    trainingRuns.push(runRecord);
+    renderTrainRunList();
+
+    // Show before/after comparison
+    showBeforeAfter(best);
+
+    // Auto-switch to simulation tab after a pause
+    setTimeout(() => switchTab('simulation'), 2000);
 
     // Load training rollouts into viewer
     await loadRollouts();
@@ -1234,6 +1286,84 @@ function stopAgentStep() {
   if (agentInterval) { clearInterval(agentInterval); agentInterval = null; }
   document.getElementById('agentBtn').style.display = '';
   document.getElementById('agentStopBtn').style.display = 'none';
+}
+
+// --- Multi-run Training Log ---
+function renderTrainRunList() {
+  const list = document.getElementById('trainRunList');
+  const countEl = document.getElementById('trainRunCount');
+  countEl.textContent = trainingRuns.length + ' run' + (trainingRuns.length !== 1 ? 's' : '');
+
+  if (trainingRuns.length === 0) {
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:12px;">No training runs yet.</div>';
+    return;
+  }
+
+  list.innerHTML = trainingRuns.map((r, i) => {
+    const retColor = r.best_return >= 0 ? 'var(--green)' : 'var(--red)';
+    const active = i === trainingRuns.length - 1 ? 'background:var(--primary-pale);border-left:3px solid var(--primary);' : '';
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;${active}" onclick="viewTrainRun(${i})">
+      <span style="font-weight:700;color:var(--primary);min-width:32px;">Run ${r.id}</span>
+      <span style="color:var(--muted);">${r.algorithm}</span>
+      <span>${r.episodes} eps</span>
+      <span style="font-weight:700;color:${retColor};">${(r.best_return * 100).toFixed(1)}%</span>
+      <span style="color:var(--muted);margin-left:auto;">${r.timestamp}</span>
+    </div>`;
+  }).join('');
+}
+
+function viewTrainRun(idx) {
+  const run = trainingRuns[idx];
+  if (!run) return;
+
+  document.getElementById('trainPanel').style.display = '';
+  document.getElementById('trainMetrics').style.display = '';
+  document.getElementById('tmReturn').textContent = (run.best_return * 100).toFixed(1) + '%';
+  document.getElementById('tmSharpe').textContent = run.best_sharpe.toFixed(3);
+  document.getElementById('tmEpsilon').textContent = run.final_epsilon.toFixed(3);
+  document.getElementById('tmEpisodes').textContent = run.episodes;
+  document.getElementById('trainProgressBar').style.width = '100%';
+  document.getElementById('trainProgressLabel').textContent = `Run ${run.id}: ${run.algorithm}, ${run.episodes} episodes`;
+
+  if (run.history) drawTrainChart(run.history);
+
+  renderTrainRunList();
+}
+
+// --- Before/After Comparison ---
+function showBeforeAfter(trainedMetrics) {
+  const card = document.getElementById('beforeAfterCard');
+  const tbody = document.getElementById('beforeAfterBody');
+  card.style.display = '';
+
+  const before = baselineMetrics || { total_return: 0, sharpe_ratio: 0, max_drawdown: 0, portfolio_value: 100000 };
+  const after = {
+    total_return: trainedMetrics.total_return ?? trainedMetrics.avg_reward ?? 0,
+    sharpe_ratio: trainedMetrics.sharpe_ratio ?? 0,
+    max_drawdown: trainedMetrics.max_drawdown ?? 0,
+    portfolio_value: trainedMetrics.portfolio_value ?? 100000,
+  };
+
+  const rows = [
+    { label: 'Total Return', before: before.total_return, after: after.total_return, fmt: v => (v * 100).toFixed(2) + '%' },
+    { label: 'Sharpe Ratio', before: before.sharpe_ratio, after: after.sharpe_ratio, fmt: v => v.toFixed(3) },
+    { label: 'Max Drawdown', before: before.max_drawdown, after: after.max_drawdown, fmt: v => (v * 100).toFixed(2) + '%', lower_better: true },
+    { label: 'Portfolio Value', before: before.portfolio_value, after: after.portfolio_value, fmt: v => '$' + Math.round(v).toLocaleString() },
+  ];
+
+  tbody.innerHTML = rows.map(r => {
+    const diff = r.after - r.before;
+    const improved = r.lower_better ? diff <= 0 : diff >= 0;
+    const changeColor = improved ? 'var(--green)' : 'var(--red)';
+    const arrow = improved ? '&#9650;' : '&#9660;';
+    const diffStr = r.fmt(Math.abs(diff));
+    return `<tr>
+      <td style="font-weight:600;">${r.label}</td>
+      <td style="color:var(--muted);">${r.fmt(r.before)}</td>
+      <td style="font-weight:700;">${r.fmt(r.after)}</td>
+      <td style="color:${changeColor};font-weight:700;">${arrow} ${diffStr}</td>
+    </tr>`;
+  }).join('');
 }
 
 // --- UI Helpers ---
