@@ -463,6 +463,17 @@ async def get_scenarios():
     raise HTTPException(status_code=404, detail="scenarios_and_verifiers.json not found")
 
 
+@app.get("/workflows")
+async def get_workflows():
+    """Return workflow definitions with tools, scenarios, verifiers (Jira-compatible format)."""
+    wf_path = Path(__file__).parent / "financial_workflows.json"
+    if wf_path.exists():
+        import json
+        with open(wf_path) as f:
+            return json.load(f)
+    raise HTTPException(status_code=404, detail="financial_workflows.json not found")
+
+
 @app.get("/scenarios/{env_id}")
 async def get_env_scenarios(env_id: str):
     """Return scenarios for a specific environment."""

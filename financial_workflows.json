@@ -1,0 +1,200 @@
+{
+  "$schema": "https://rl-hub.dev/schemas/financial-workflow-v1.json",
+  "version": "1.0",
+  "environment": "financial",
+  "company": "Apex Capital Management",
+  "description": "Financial RL workflow definitions for equity trading, portfolio allocation, and derivatives hedging.",
+  "tools": {
+    "get_market_state": {
+      "description": "Fetch current price, volume, and 12 technical indicators (RSI, MACD, Bollinger, momentum, volatility, moving averages)",
+      "arguments": ["lookback"],
+      "returns": ["observation_vector", "price", "rsi", "macd", "momentum", "volatility", "bollinger_position"]
+    },
+    "execute_trade": {
+      "description": "Execute a buy/sell/hold trade with automatic position sizing, transaction costs (10 bps), and slippage (5 bps)",
+      "arguments": ["action"],
+      "returns": ["reward", "new_observation", "terminated", "portfolio_value", "total_return"],
+      "requires": ["action must be integer in {0: strong_sell, 1: sell, 2: hold, 3: buy, 4: strong_buy}"]
+    },
+    "get_portfolio_status": {
+      "description": "Get current portfolio value, P&L, position size, drawdown from peak, Sharpe ratio, and trade count",
+      "arguments": [],
+      "returns": ["portfolio_value", "total_return", "sharpe_ratio", "max_drawdown", "trade_count", "total_cost", "position"]
+    },
+    "get_asset_returns": {
+      "description": "Fetch multi-asset return history with configurable lookback window for all 5 correlated assets",
+      "arguments": ["lookback"],
+      "returns": ["return_matrix", "current_weights", "correlation_matrix"]
+    },
+    "rebalance_portfolio": {
+      "description": "Set target portfolio weights across 5 assets. Weights normalized to sum to 1. Transaction costs applied to turnover.",
+      "arguments": ["weights"],
+      "returns": ["reward", "new_observation", "turnover", "transaction_cost", "portfolio_value"],
+      "requires": ["weights must be array of 5 floats summing to 1.0", "all weights must be non-negative"]
+    },
+    "get_risk_metrics": {
+      "description": "Get portfolio Sharpe ratio, rolling volatility, maximum drawdown, current weights, and total return",
+      "arguments": [],
+      "returns": ["sharpe_ratio", "volatility", "max_drawdown", "weights", "total_return", "portfolio_value"]
+    },
+    "get_option_greeks": {
+      "description": "Fetch Black-Scholes delta, gamma, current moneyness (S/K), time to expiry, and implied volatility",
+      "arguments": [],
+      "returns": ["delta", "gamma", "moneyness", "time_to_expiry", "sigma", "option_price"]
+    },
+    "adjust_hedge": {
+      "description": "Set the hedge ratio for the options position. 0=no hedge, 1=full BS delta hedge. Transaction costs applied to changes.",
+      "arguments": ["hedge_ratio"],
+      "returns": ["reward", "new_observation", "pnl", "hedge_error", "transaction_cost"],
+      "requires": ["hedge_ratio must be float in [-0.5, 1.5]"]
+    },
+    "get_pnl_status": {
+      "description": "Get current hedging P&L, P&L variance, hedge position size, and hedging error relative to BS delta",
+      "arguments": [],
+      "returns": ["pnl", "pnl_variance", "hedge_position", "hedge_error", "bs_delta", "stock_price"]
+    }
+  },
+  "workflows": [
+    {
+      "id": "equity_trading",
+      "title": "Apex Equities Desk",
+      "description": "Directional equity trading using technical signals -- momentum, mean-reversion, and regime detection",
+      "environment_id": "stock-trading",
+      "expected_tool_order": ["get_market_state", "execute_trade", "get_portfolio_status"],
+      "allow_extra_calls": true,
+      "min_required_calls": 3,
+      "rules": [
+        "Tool order must be respected: observe before trading",
+        "Actions must be valid integers (0-4)",
+        "Position limits: abs(position) <= 100% of portfolio",
+        "Portfolio value must stay above ruin threshold (50%)"
+      ],
+      "scoring": {
+        "tool_usage_weight": 0.2,
+        "sequence_weight": 0.3,
+        "return_weight": 0.3,
+        "risk_weight": 0.2
+      },
+      "scenarios": [
+        {"id": "ST-001", "title": "Buy the Dip", "description": "RSI drops below 0.30 (oversold). Agent must buy and exit when RSI normalizes.", "difficulty": "easy"},
+        {"id": "ST-002", "title": "Trend Following", "description": "5-day MA crosses above 20-day MA. Agent must enter long and ride the trend.", "difficulty": "easy"},
+        {"id": "ST-003", "title": "Mean Reversion Trade", "description": "Price deviates >2 std from mean. Agent must fade the move.", "difficulty": "medium"},
+        {"id": "ST-004", "title": "Momentum Scalping", "description": "Strong 10-day momentum (>3%). Quick directional trades.", "difficulty": "medium"},
+        {"id": "ST-005", "title": "Volatile Market Navigation", "description": "Volatility spikes above 30%. Reduce exposure and preserve capital.", "difficulty": "medium"},
+        {"id": "ST-006", "title": "Drawdown Recovery", "description": "Portfolio declined 15% from peak. Recover without increasing risk.", "difficulty": "hard"},
+        {"id": "ST-007", "title": "Regime Change Adaptation", "description": "Market switches from bull to bear mid-episode. Detect and adapt.", "difficulty": "hard"},
+        {"id": "ST-008", "title": "Cost-Aware Trading", "description": "High transaction cost (50 bps). Minimize trade frequency.", "difficulty": "hard"},
+        {"id": "ST-009", "title": "Full Episode Optimization", "description": "Complete ~500 step episode. Maximize Sharpe ratio.", "difficulty": "hard"},
+        {"id": "ST-010", "title": "Earnings Shock Response", "description": "Sudden 5% price gap. Decide: hold, cut losses, or add.", "difficulty": "expert"}
+      ]
+    },
+    {
+      "id": "portfolio_allocation",
+      "title": "Apex Multi-Asset Allocator",
+      "description": "Dynamic portfolio weight optimization across 5 correlated asset classes with cost-aware rebalancing",
+      "environment_id": "portfolio-allocation",
+      "expected_tool_order": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+      "allow_extra_calls": true,
+      "min_required_calls": 3,
+      "rules": [
+        "Weights must sum to 1.0",
+        "All weights must be non-negative (long-only)",
+        "No single asset weight exceeds 80%",
+        "Turnover must be within budget"
+      ],
+      "scoring": {
+        "tool_usage_weight": 0.2,
+        "sequence_weight": 0.2,
+        "return_weight": 0.3,
+        "diversification_weight": 0.3
+      },
+      "scenarios": [
+        {"id": "PA-001", "title": "Equal Weight Baseline", "description": "Maintain equal weights [0.20 x 5]. Baseline for comparison.", "difficulty": "easy"},
+        {"id": "PA-002", "title": "Concentrated Bet", "description": "Identify best asset, allocate 80%+. High risk, high reward.", "difficulty": "easy"},
+        {"id": "PA-003", "title": "Risk Parity Allocation", "description": "Allocate inversely to volatility. Lower-vol gets more.", "difficulty": "medium"},
+        {"id": "PA-004", "title": "Correlation Regime Shift", "description": "Correlations change mid-episode (0.3 to 0.8). Adapt.", "difficulty": "medium"},
+        {"id": "PA-005", "title": "Low-Turnover Optimization", "description": "Maximize return with turnover < 20%. Elevated costs.", "difficulty": "medium"},
+        {"id": "PA-006", "title": "Tail Risk Hedging", "description": "One asset has fat tails (t-dist df=3). Limit exposure.", "difficulty": "hard"},
+        {"id": "PA-007", "title": "Multi-Objective: Return + ESG", "description": "Maximize return with green assets > 40%.", "difficulty": "hard"},
+        {"id": "PA-008", "title": "Crisis Allocation", "description": "Bear market across all assets. Find least-bad allocation.", "difficulty": "hard"},
+        {"id": "PA-009", "title": "Dynamic Rebalancing", "description": "Full episode with monthly rebalancing on rolling metrics.", "difficulty": "expert"},
+        {"id": "PA-010", "title": "Markowitz vs RL", "description": "Compare RL weights against mean-variance optimal.", "difficulty": "expert"}
+      ]
+    },
+    {
+      "id": "derivatives_hedging",
+      "title": "Apex Derivatives Hedging",
+      "description": "Intelligent delta hedging for options book with stochastic volatility and transaction cost optimization",
+      "environment_id": "options-pricing",
+      "expected_tool_order": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+      "allow_extra_calls": true,
+      "min_required_calls": 3,
+      "rules": [
+        "Hedge ratio must be in [-0.5, 1.5]",
+        "Cannot leave position fully unhedged for >3 steps",
+        "Total hedging costs must stay within budget",
+        "Terminal payoff must be within tolerance of theoretical"
+      ],
+      "scoring": {
+        "tool_usage_weight": 0.2,
+        "sequence_weight": 0.2,
+        "hedging_accuracy_weight": 0.4,
+        "cost_efficiency_weight": 0.2
+      },
+      "scenarios": [
+        {"id": "OP-001", "title": "Full Delta Hedge", "description": "Maintain hedge ratio = BS delta at every step. Baseline.", "difficulty": "easy"},
+        {"id": "OP-002", "title": "Static Hedge", "description": "Set hedge once and hold. No rebalancing.", "difficulty": "easy"},
+        {"id": "OP-003", "title": "Cost-Aware Hedging", "description": "Transaction cost = 50 bps. Hedge less frequently.", "difficulty": "medium"},
+        {"id": "OP-004", "title": "Stochastic Volatility", "description": "Vol follows Heston dynamics. Adapt to changing vol.", "difficulty": "medium"},
+        {"id": "OP-005", "title": "Deep In-the-Money", "description": "S/K = 1.20, delta near 1. Maintain tight hedge.", "difficulty": "medium"},
+        {"id": "OP-006", "title": "Deep Out-of-Money", "description": "S/K = 0.80, delta near 0. Avoid over-hedging.", "difficulty": "medium"},
+        {"id": "OP-007", "title": "Gamma Scalping", "description": "Near expiry, gamma spikes. Adjust rapidly.", "difficulty": "hard"},
+        {"id": "OP-008", "title": "Volatility Spike", "description": "Vol jumps from 20% to 50% mid-episode. React.", "difficulty": "hard"},
+        {"id": "OP-009", "title": "Multi-Option Book", "description": "Hedge options with different strikes. Manage net delta.", "difficulty": "expert"},
+        {"id": "OP-010", "title": "P&L Variance Minimization", "description": "Minimize daily P&L variance, not just terminal.", "difficulty": "expert"}
+      ]
+    }
+  ],
+  "verifier_metadata": {
+    "expected_order_source": "financial_workflows.json",
+    "verifier_types": ["rule-based", "trajectory-based"],
+    "argument_validity": {
+      "execute_trade": {
+        "action": {
+          "valid_values": [0, 1, 2, 3, 4],
+          "labels": ["strong_sell", "sell", "hold", "buy", "strong_buy"]
+        }
+      },
+      "rebalance_portfolio": {
+        "weights": {
+          "constraint": "sum(weights) == 1.0 and all(w >= 0)",
+          "length": 5
+        }
+      },
+      "adjust_hedge": {
+        "hedge_ratio": {
+          "min": -0.5,
+          "max": 1.5
+        }
+      }
+    },
+    "verifier_definitions": [
+      {"id": "STV-001", "name": "Return Threshold", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Total return must exceed minimum threshold", "logic": {"field": "total_return", "operator": ">=", "threshold": -0.25}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "STV-002", "name": "Sharpe Ratio Check", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Risk-adjusted return must be acceptable", "logic": {"field": "sharpe_ratio", "operator": ">=", "threshold": -1.0}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "STV-003", "name": "Max Drawdown Limit", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Drawdown must stay within limit", "logic": {"field": "max_drawdown", "operator": "<=", "threshold": 0.40}, "failure_policy": {"action": "terminate", "severity": "critical"}},
+      {"id": "STV-004", "name": "Position Limit", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Position fraction within bounds", "logic": {"field": "abs(position)", "operator": "<=", "threshold": 1.0}, "failure_policy": {"action": "reject_action", "severity": "error"}},
+      {"id": "STV-005", "name": "Trade Frequency", "type": "trajectory-based", "system": "financial", "environment": "stock-trading", "description": "Trading frequency within bounds", "logic": {"field": "trade_count", "operator": "<=", "threshold_formula": "2 * episode_length"}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "STV-006", "name": "Cost Budget", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Transaction costs within budget", "logic": {"field": "total_cost", "operator": "<=", "threshold": 5000}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "STV-008", "name": "No Ruin", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Portfolio never hits ruin", "logic": {"field": "portfolio_value", "operator": ">", "threshold": 50000}, "failure_policy": {"action": "terminate", "severity": "critical"}},
+      {"id": "STV-010", "name": "Episode Completion", "type": "rule-based", "system": "financial", "environment": "stock-trading", "description": "Episode runs to completion", "logic": {"field": "status", "operator": "==", "value": "completed"}, "failure_policy": {"action": "flag", "severity": "info"}},
+      {"id": "PAV-001", "name": "Weights Sum to 1", "type": "rule-based", "system": "financial", "environment": "portfolio-allocation", "description": "Portfolio weights sum to 1.0", "logic": {"field": "abs(sum(weights) - 1)", "operator": "<", "threshold": 0.01}, "failure_policy": {"action": "reject_action", "severity": "error"}},
+      {"id": "PAV-002", "name": "Non-Negative Weights", "type": "rule-based", "system": "financial", "environment": "portfolio-allocation", "description": "All weights non-negative", "logic": {"field": "min(weights)", "operator": ">=", "threshold": 0}, "failure_policy": {"action": "reject_action", "severity": "error"}},
+      {"id": "PAV-003", "name": "Max Concentration", "type": "rule-based", "system": "financial", "environment": "portfolio-allocation", "description": "No single asset exceeds 80%", "logic": {"field": "max(weights)", "operator": "<=", "threshold": 0.80}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "PAV-006", "name": "Max Drawdown", "type": "rule-based", "system": "financial", "environment": "portfolio-allocation", "description": "Drawdown within limit", "logic": {"field": "max_drawdown", "operator": "<=", "threshold": 0.50}, "failure_policy": {"action": "terminate", "severity": "critical"}},
+      {"id": "OPV-001", "name": "Hedge Ratio Bounds", "type": "rule-based", "system": "financial", "environment": "options-pricing", "description": "Hedge ratio in valid range", "logic": {"field": "hedge_ratio", "operator": "between", "min": -0.5, "max": 1.5}, "failure_policy": {"action": "reject_action", "severity": "error"}},
+      {"id": "OPV-002", "name": "P&L Floor", "type": "rule-based", "system": "financial", "environment": "options-pricing", "description": "P&L above minimum", "logic": {"field": "pnl", "operator": ">=", "threshold": -50000}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "OPV-003", "name": "Hedging Error", "type": "trajectory-based", "system": "financial", "environment": "options-pricing", "description": "Hedge ratio close to BS delta on average", "logic": {"field": "avg(abs(hedge - delta))", "operator": "<", "threshold": 0.5}, "failure_policy": {"action": "flag", "severity": "warning"}},
+      {"id": "OPV-008", "name": "No Naked Exposure", "type": "trajectory-based", "system": "financial", "environment": "options-pricing", "description": "Never fully unhedged for >3 steps", "logic": {"field": "max_consecutive_unhedged", "operator": "<=", "threshold": 3}, "failure_policy": {"action": "flag", "severity": "error"}}
+    ]
+  }
+}
