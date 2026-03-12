@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 from contextlib import asynccontextmanager
 
 import numpy as np
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -745,22 +746,44 @@ async def train_agent(env_id: str, req: TrainRequest):
                 "steps": int(metrics.get("steps", 0)),
             }
         else:
-            rollout = agent.collect_rollout(env)
-            update_info = agent.update(rollout)
-            avg_reward = float(rollout["rewards"].mean())
-            total_reward = float(rollout["rewards"].sum())
+            rollout_data = agent.collect_rollout(env)
+            update_info = agent.update(rollout_data)
+            avg_reward = float(rollout_data["rewards"].mean())
+
+            # Run a quick evaluation episode to get real env metrics
+            eval_obs, eval_info = env.reset()
+            eval_total_reward = 0
+            eval_steps = 0
+            while True:
+                st = torch.FloatTensor(eval_obs).unsqueeze(0)
+                with torch.no_grad():
+                    act, _, _, _ = agent.network.get_action_and_value(st)
+                act_np = act.cpu().numpy().flatten()
+                if env_type == "portfolio-allocation":
+                    act_np = np.clip(act_np, 0, None)
+                    s = act_np.sum()
+                    if s > 0:
+                        act_np = act_np / s
+                    else:
+                        act_np = np.ones_like(act_np) / len(act_np)
+                eval_obs, r, term, trunc, eval_info = env.step(act_np)
+                eval_total_reward += r
+                eval_steps += 1
+                if term or trunc or eval_steps > 500:
+                    break
+
             ep_data = {
                 "episode": ep + 1,
-                "total_return": avg_reward,
-                "sharpe_ratio": 0.0,
-                "portfolio_value": 0.0,
-                "max_drawdown": 0.0,
+                "total_return": float(eval_info.get("total_return", avg_reward)),
+                "sharpe_ratio": float(eval_info.get("sharpe_ratio", 0)),
+                "portfolio_value": float(eval_info.get("portfolio_value", 0)),
+                "max_drawdown": float(eval_info.get("max_drawdown", 0)),
                 "avg_loss": float(update_info.get("value_loss", 0)),
                 "epsilon": 0.0,
                 "policy_loss": float(update_info.get("policy_loss", 0)),
                 "entropy": float(update_info.get("entropy", 0)),
-                "avg_reward": avg_reward,
-                "steps": int(agent.rollout_length),
+                "avg_reward": float(eval_info.get("total_return", avg_reward)),
+                "steps": eval_steps,
             }
         training_history.append(ep_data)
 
