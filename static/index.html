@@ -405,8 +405,8 @@
 
   <!-- Company + Environment List -->
   <div id="companyBanner" class="company-banner">
-    <h2 id="companyName">Hedge Fund</h2>
-    <div class="company-desc" id="companyDesc">Quantitative hedge fund with stock trading, portfolio management, and derivatives hedging workflows</div>
+    <h2 id="companyName">Apex Capital Management</h2>
+    <div class="company-desc" id="companyDesc">Quantitative investment firm specializing in algorithmic trading, multi-asset portfolio management, and derivatives risk solutions</div>
     <div class="company-stats">
       <div class="cstat"><div class="cv" id="companyEnvCount">3</div><div class="cl">Environments</div></div>
       <div class="cstat"><div class="cv" id="companyScenarios">30</div><div class="cl">Scenarios</div></div>
@@ -751,13 +751,14 @@ async function loadEnvTypes() {
     // Load company data
     try {
       const companies = await api('/companies');
-      const hf = companies['hedge-fund'];
-      if (hf) {
-        document.getElementById('companyName').textContent = hf.name;
-        document.getElementById('companyDesc').textContent = hf.description;
-        document.getElementById('companyEnvCount').textContent = hf.total_environments;
-        document.getElementById('companyScenarios').textContent = hf.total_scenarios;
-        document.getElementById('companyVerifiers').textContent = hf.total_verifiers;
+      const firstKey = Object.keys(companies)[0];
+      const co = companies[firstKey];
+      if (co) {
+        document.getElementById('companyName').textContent = co.name;
+        document.getElementById('companyDesc').textContent = co.description;
+        document.getElementById('companyEnvCount').textContent = co.total_environments;
+        document.getElementById('companyScenarios').textContent = co.total_scenarios;
+        document.getElementById('companyVerifiers').textContent = co.total_verifiers;
       }
     } catch (e) { /* company endpoint not available, use defaults */ }
 

@@ -32,8 +32,8 @@ from agents.ppo_agent import PPOTrader
 ENV_REGISTRY = {
     "stock-trading": {
         "class": StockTradingEnv,
-        "display_name": "Stock Trading",
-        "description": "Single-asset trading with discrete buy/sell/hold actions",
+        "display_name": "Apex Equities Desk",
+        "description": "Directional equity trading using momentum, mean-reversion, and regime detection signals",
         "tools": [
             {"name": "get_market_state", "description": "Fetch price, volume, and technical indicators"},
             {"name": "execute_trade", "description": "Buy/sell/hold with position sizing"},
@@ -45,8 +45,8 @@ ENV_REGISTRY = {
     },
     "portfolio-allocation": {
         "class": PortfolioAllocationEnv,
-        "display_name": "Portfolio Allocation",
-        "description": "Multi-asset portfolio weight optimization across 5 correlated assets",
+        "display_name": "Apex Multi-Asset Allocator",
+        "description": "Dynamic portfolio weight optimization across 5 correlated asset classes with cost-aware rebalancing",
         "tools": [
             {"name": "get_asset_returns", "description": "Multi-asset return history with lookback window"},
             {"name": "rebalance_portfolio", "description": "Set target portfolio weights (sum to 1)"},
@@ -58,8 +58,8 @@ ENV_REGISTRY = {
     },
     "options-pricing": {
         "class": OptionsPricingEnv,
-        "display_name": "Options Pricing & Hedging",
-        "description": "Dynamic delta hedging for short call option positions",
+        "display_name": "Apex Derivatives Hedging",
+        "description": "Intelligent delta hedging for options book with stochastic volatility and transaction cost optimization",
         "tools": [
             {"name": "get_option_greeks", "description": "Delta, gamma, and current hedge ratio"},
             {"name": "adjust_hedge", "description": "Set hedge ratio (0=none, 1=full delta)"},
@@ -72,33 +72,33 @@ ENV_REGISTRY = {
 }
 
 COMPANY_REGISTRY = {
-    "hedge-fund": {
-        "id": "hedge-fund",
-        "name": "Hedge Fund",
-        "description": "Quantitative hedge fund with stock trading, portfolio management, and derivatives hedging workflows",
+    "apex-capital": {
+        "id": "apex-capital",
+        "name": "Apex Capital Management",
+        "description": "Quantitative investment firm specializing in algorithmic trading, multi-asset portfolio management, and derivatives risk solutions",
         "icon": "building",
         "environments": ["stock-trading", "portfolio-allocation", "options-pricing"],
         "workflows": [
             {
                 "id": "stock-trading",
-                "name": "Stock Trading",
-                "description": "Single-asset directional trading with technical indicators",
+                "name": "Apex Equities Desk",
+                "description": "Directional equity trading using technical signals -- momentum, mean-reversion, and regime detection",
                 "algorithm": "DQN (Double + Dueling)",
                 "scenarios_count": 10,
                 "verifiers_count": 10,
             },
             {
                 "id": "portfolio-allocation",
-                "name": "Portfolio Allocation",
-                "description": "Multi-asset weight optimization across correlated assets",
+                "name": "Apex Multi-Asset Allocator",
+                "description": "Dynamic portfolio weight optimization across correlated asset classes with cost-aware rebalancing",
                 "algorithm": "PPO (Continuous)",
                 "scenarios_count": 10,
                 "verifiers_count": 10,
             },
             {
                 "id": "options-pricing",
-                "name": "Options Pricing & Hedging",
-                "description": "Dynamic delta hedging for options positions",
+                "name": "Apex Derivatives Hedging",
+                "description": "Intelligent delta hedging for options book with stochastic volatility and transaction cost optimization",
                 "algorithm": "PPO (Continuous)",
                 "scenarios_count": 10,
                 "verifiers_count": 10,
