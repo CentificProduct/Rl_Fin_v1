@@ -452,6 +452,31 @@ async def list_tools():
     return tools
 
 
+@app.get("/scenarios")
+async def get_scenarios():
+    """Return all scenarios, verifiers, and tools for all environments."""
+    scenarios_path = Path(__file__).parent / "scenarios_and_verifiers.json"
+    if scenarios_path.exists():
+        import json
+        with open(scenarios_path) as f:
+            return json.load(f)
+    raise HTTPException(status_code=404, detail="scenarios_and_verifiers.json not found")
+
+
+@app.get("/scenarios/{env_id}")
+async def get_env_scenarios(env_id: str):
+    """Return scenarios for a specific environment."""
+    scenarios_path = Path(__file__).parent / "scenarios_and_verifiers.json"
+    if scenarios_path.exists():
+        import json
+        with open(scenarios_path) as f:
+            data = json.load(f)
+        for env_data in data.get("environments", []):
+            if env_data.get("id") == env_id:
+                return env_data
+    raise HTTPException(status_code=404, detail=f"No scenarios found for '{env_id}'")
+
+
 @app.post("/envs/create", response_model=CreateEnvResponse)
 async def create_env(req: CreateEnvRequest):
     if req.env_type not in ENV_REGISTRY:

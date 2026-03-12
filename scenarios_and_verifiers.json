@@ -1,17 +1,40 @@
 {
-  "company": {
-    "name": "Financial Trading Company",
-    "description": "Single stock trading company with three financial RL workflows",
-    "workflows": ["stock-trading", "portfolio-allocation", "options-pricing"]
-  },
-  "workflows": {
-    "stock-trading": {
-      "display_name": "Stock Trading",
-      "description": "Single-asset trading with discrete buy/sell/hold actions",
+  "name": "Apex Capital Management",
+  "description": "Quantitative investment firm with equity trading, multi-asset allocation, and derivatives hedging",
+  "version": "1.0.0",
+  "environments": [
+    {
+      "name": "Apex Equities Desk",
+      "id": "stock-trading",
+      "description": "Directional equity trading using momentum, mean-reversion, and regime detection signals",
       "algorithm": "DQN (Double + Dueling)",
       "action_type": "discrete",
       "action_dim": 5,
       "observation_dim": 16,
+      "tools": [
+        {
+          "name": "get_market_state",
+          "description": "Fetch current price, volume, and 12 technical indicators (RSI, MACD, Bollinger, momentum, volatility, moving averages)",
+          "parameters": {
+            "lookback": {"type": "integer", "default": 30, "description": "Number of historical days to include"}
+          },
+          "returns": "observation vector (16-dim float array)"
+        },
+        {
+          "name": "execute_trade",
+          "description": "Execute a buy/sell/hold trade with automatic position sizing, transaction costs (10 bps), and slippage (5 bps)",
+          "parameters": {
+            "action": {"type": "integer", "enum": [0, 1, 2, 3, 4], "description": "0=strong_sell, 1=sell, 2=hold, 3=buy, 4=strong_buy"}
+          },
+          "returns": "reward (float), new observation, terminated flag"
+        },
+        {
+          "name": "get_portfolio_status",
+          "description": "Get current portfolio value, P&L, position size, drawdown from peak, Sharpe ratio, and trade count",
+          "parameters": {},
+          "returns": "dict with portfolio_value, total_return, sharpe_ratio, max_drawdown, trade_count, total_cost"
+        }
+      ],
       "scenarios": [
         {
           "id": "ST-001",
@@ -19,10 +42,13 @@
           "description": "RSI drops below 0.30 (oversold). Agent must identify the buying opportunity, enter a position, and exit when RSI normalizes.",
           "difficulty": "easy",
           "expected_steps": "3-5",
-          "config": {
-            "trigger": "rsi_oversold",
-            "rsi_threshold": 0.30
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "rsi_oversold", "rsi_threshold": 0.30},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-007", "name": "Action Sequence Valid", "check": "all actions in {0,1,2,3,4}", "category": "format"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-002",
@@ -30,11 +56,13 @@
           "description": "5-day MA crosses above 20-day MA (golden cross). Agent must enter long position and ride the trend until reversal signal.",
           "difficulty": "easy",
           "expected_steps": "4-6",
-          "config": {
-            "trigger": "ma_crossover",
-            "fast_ma": 5,
-            "slow_ma": 20
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "ma_crossover", "fast_ma": 5, "slow_ma": 20},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-002", "name": "Sharpe Ratio Check", "check": "sharpe_ratio >= -1.0", "category": "outcome"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-003",
@@ -42,10 +70,13 @@
           "description": "Price deviates >2 standard deviations from 20-day mean (Bollinger breakout). Agent must fade the move and capture reversion.",
           "difficulty": "medium",
           "expected_steps": "3-5",
-          "config": {
-            "trigger": "bollinger_breakout",
-            "std_threshold": 2.0
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "bollinger_breakout", "std_threshold": 2.0},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-003", "name": "Max Drawdown Limit", "check": "max_drawdown <= 0.40", "category": "risk"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-004",
@@ -53,10 +84,14 @@
           "description": "Strong 10-day momentum (>3%). Agent must take quick directional trades and manage position sizing with transaction costs.",
           "difficulty": "medium",
           "expected_steps": "5-8",
-          "config": {
-            "trigger": "high_momentum",
-            "momentum_threshold": 0.03
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "high_momentum", "momentum_threshold": 0.03},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-005", "name": "Trade Frequency", "check": "trade_count <= 2 * episode_length", "category": "efficiency"},
+            {"id": "STV-006", "name": "Transaction Cost Budget", "check": "total_cost <= 5000", "category": "cost"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-005",
@@ -64,10 +99,14 @@
           "description": "Volatility spikes above 30% annualized. Agent must reduce exposure, avoid excessive trading, and preserve capital.",
           "difficulty": "medium",
           "expected_steps": "5-10",
-          "config": {
-            "trigger": "high_volatility",
-            "volatility_threshold": 0.30
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "high_volatility", "volatility_threshold": 0.30},
+          "verifiers": [
+            {"id": "STV-003", "name": "Max Drawdown Limit", "check": "max_drawdown <= 0.40", "category": "risk"},
+            {"id": "STV-005", "name": "Trade Frequency", "check": "trade_count <= 2 * episode_length", "category": "efficiency"},
+            {"id": "STV-008", "name": "No Ruin", "check": "portfolio_value > 50000", "category": "survival"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-006",
@@ -75,10 +114,14 @@
           "description": "Portfolio has declined 15% from peak. Agent must recover without increasing risk. No aggressive positions allowed.",
           "difficulty": "hard",
           "expected_steps": "10-20",
-          "config": {
-            "trigger": "drawdown_recovery",
-            "initial_drawdown": 0.15
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "drawdown_recovery", "initial_drawdown": 0.15},
+          "verifiers": [
+            {"id": "STV-003", "name": "Max Drawdown Limit", "check": "max_drawdown <= 0.40", "category": "risk"},
+            {"id": "STV-004", "name": "Position Limit", "check": "abs(position) <= 1.0", "category": "constraint"},
+            {"id": "STV-008", "name": "No Ruin", "check": "portfolio_value > 50000", "category": "survival"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-007",
@@ -86,10 +129,14 @@
           "description": "Market switches from bull to bear mid-episode. Agent must detect the shift and reverse from long to short/cash.",
           "difficulty": "hard",
           "expected_steps": "8-15",
-          "config": {
-            "trigger": "regime_switch",
-            "switch_point": "mid_episode"
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "regime_switch", "switch_point": "mid_episode"},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-002", "name": "Sharpe Ratio Check", "check": "sharpe_ratio >= -1.0", "category": "outcome"},
+            {"id": "STV-003", "name": "Max Drawdown Limit", "check": "max_drawdown <= 0.40", "category": "risk"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-008",
@@ -97,10 +144,14 @@
           "description": "High transaction cost environment (50 bps). Agent must minimize trade frequency while still capturing directional moves.",
           "difficulty": "hard",
           "expected_steps": "5-10",
-          "config": {
-            "transaction_cost": 0.005,
-            "trigger": "high_cost_environment"
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"transaction_cost": 0.005, "trigger": "high_cost_environment"},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-005", "name": "Trade Frequency", "check": "trade_count <= episode_length", "category": "efficiency"},
+            {"id": "STV-006", "name": "Transaction Cost Budget", "check": "total_cost <= 5000", "category": "cost"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-009",
@@ -108,10 +159,17 @@
           "description": "Complete trading episode from start to finish (~500 steps). Maximize Sharpe ratio over the full period.",
           "difficulty": "hard",
           "expected_steps": "400-500",
-          "config": {
-            "n_steps": 500,
-            "reward_type": "sharpe"
-          }
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"n_steps": 500, "reward_type": "sharpe"},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-002", "name": "Sharpe Ratio Check", "check": "sharpe_ratio >= -1.0", "category": "outcome"},
+            {"id": "STV-003", "name": "Max Drawdown Limit", "check": "max_drawdown <= 0.40", "category": "risk"},
+            {"id": "STV-006", "name": "Transaction Cost Budget", "check": "total_cost <= 5000", "category": "cost"},
+            {"id": "STV-008", "name": "No Ruin", "check": "portfolio_value > 50000", "category": "survival"},
+            {"id": "STV-009", "name": "Reward Consistency", "check": "abs(mean_reward) < 100", "category": "sanity"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         },
         {
           "id": "ST-010",
@@ -119,120 +177,49 @@
           "description": "Sudden 5% price gap (simulated). Agent must decide: hold through, cut losses, or add to position.",
           "difficulty": "expert",
           "expected_steps": "3-5",
-          "config": {
-            "trigger": "price_gap",
-            "gap_size": 0.05
-          }
-        }
-      ],
-      "verifiers": [
-        {
-          "id": "STV-001",
-          "name": "Return Threshold",
-          "description": "Total return >= minimum threshold",
-          "check": "total_return >= threshold",
-          "threshold": -0.25,
-          "threshold_label": ">= -25%",
-          "category": "outcome",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "STV-002",
-          "name": "Sharpe Ratio Check",
-          "description": "Annualized Sharpe ratio is acceptable",
-          "check": "sharpe_ratio >= threshold",
-          "threshold": -1.0,
-          "threshold_label": ">= -1.0",
-          "category": "outcome",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "STV-003",
-          "name": "Max Drawdown Limit",
-          "description": "Peak-to-trough drawdown within allowed limit",
-          "check": "max_drawdown <= threshold",
-          "threshold": 0.40,
-          "threshold_label": "<= 40%",
-          "category": "risk",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "STV-004",
-          "name": "Position Limit",
-          "description": "Position fraction within allowed range",
-          "check": "abs(position) <= threshold",
-          "threshold": 1.0,
-          "threshold_label": "abs(position) <= 100%",
-          "category": "constraint",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "STV-005",
-          "name": "Trade Frequency",
-          "description": "Number of trades per episode within bounds",
-          "check": "trade_count <= threshold",
-          "threshold_formula": "2 * episode_length",
-          "threshold_label": "<= 2x episode length",
-          "category": "efficiency",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "STV-006",
-          "name": "Transaction Cost Budget",
-          "description": "Total transaction costs within budget",
-          "check": "total_cost <= threshold",
-          "threshold": 5000,
-          "threshold_label": "<= 5% of $100K initial",
-          "category": "cost",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "STV-007",
-          "name": "Action Sequence Valid",
-          "description": "All actions are valid discrete integers",
-          "check": "all actions in {0,1,2,3,4}",
-          "valid_actions": [0, 1, 2, 3, 4],
-          "action_labels": ["strong_sell", "sell", "hold", "buy", "strong_buy"],
-          "category": "format",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "STV-008",
-          "name": "No Ruin",
-          "description": "Portfolio never hits ruin threshold",
-          "check": "portfolio_value > threshold",
-          "threshold": 50000,
-          "threshold_label": "Portfolio > 50% of initial ($50K)",
-          "category": "survival",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "STV-009",
-          "name": "Reward Consistency",
-          "description": "Average reward is not degenerate (stuck at extreme values)",
-          "check": "abs(mean_reward) < threshold",
-          "threshold": 100,
-          "threshold_label": "abs(mean reward) < 100",
-          "category": "sanity",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "STV-010",
-          "name": "Episode Completion",
-          "description": "Agent completes the full episode",
-          "check": "terminated == true OR truncated == true",
-          "category": "completion",
-          "applies_to": "episode_end"
+          "tools": ["get_market_state", "execute_trade", "get_portfolio_status"],
+          "config": {"trigger": "price_gap", "gap_size": 0.05},
+          "verifiers": [
+            {"id": "STV-001", "name": "Return Threshold", "check": "total_return >= -0.25", "category": "outcome"},
+            {"id": "STV-003", "name": "Max Drawdown Limit", "check": "max_drawdown <= 0.40", "category": "risk"},
+            {"id": "STV-008", "name": "No Ruin", "check": "portfolio_value > 50000", "category": "survival"},
+            {"id": "STV-010", "name": "Episode Completion", "check": "episode completed", "category": "completion"}
+          ]
         }
       ]
     },
-    "portfolio-allocation": {
-      "display_name": "Portfolio Allocation",
-      "description": "Multi-asset portfolio weight optimization across 5 correlated assets",
-      "algorithm": "PPO (Continuous Policy)",
+    {
+      "name": "Apex Multi-Asset Allocator",
+      "id": "portfolio-allocation",
+      "description": "Dynamic portfolio weight optimization across 5 correlated asset classes with cost-aware rebalancing",
+      "algorithm": "PPO (Continuous)",
       "action_type": "continuous",
       "action_dim": 5,
       "observation_dim": 109,
+      "tools": [
+        {
+          "name": "get_asset_returns",
+          "description": "Fetch multi-asset return history with configurable lookback window for all 5 assets",
+          "parameters": {
+            "lookback": {"type": "integer", "default": 20, "description": "Number of historical days"}
+          },
+          "returns": "flattened return matrix (n_assets * lookback values)"
+        },
+        {
+          "name": "rebalance_portfolio",
+          "description": "Set target portfolio weights across 5 assets. Weights are normalized to sum to 1. Transaction costs applied to turnover.",
+          "parameters": {
+            "weights": {"type": "array", "items": "float", "length": 5, "description": "Target weights [w1, w2, w3, w4, w5] summing to 1.0"}
+          },
+          "returns": "reward (float), new observation, portfolio info"
+        },
+        {
+          "name": "get_risk_metrics",
+          "description": "Get portfolio Sharpe ratio, rolling volatility, maximum drawdown, current weights, and total return",
+          "parameters": {},
+          "returns": "dict with sharpe_ratio, volatility, max_drawdown, weights, total_return"
+        }
+      ],
       "scenarios": [
         {
           "id": "PA-001",
@@ -240,10 +227,13 @@
           "description": "Maintain equal weights [0.20, 0.20, 0.20, 0.20, 0.20] across 5 assets. Baseline for comparison.",
           "difficulty": "easy",
           "expected_steps": "100-200",
-          "config": {
-            "strategy": "equal_weight",
-            "n_assets": 5
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"strategy": "equal_weight", "n_assets": 5},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-002", "name": "Non-Negative Weights", "check": "all(weights >= 0)", "category": "constraint"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-002",
@@ -251,10 +241,13 @@
           "description": "Identify the best-performing asset and allocate 80%+ to it. High risk, high reward.",
           "difficulty": "easy",
           "expected_steps": "50-100",
-          "config": {
-            "strategy": "concentrated",
-            "max_single_weight": 0.80
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"strategy": "concentrated", "max_single_weight": 0.80},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-004", "name": "Portfolio Return", "check": "total_return >= -0.30", "category": "outcome"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-003",
@@ -262,9 +255,14 @@
           "description": "Allocate inversely proportional to each asset's volatility. Lower-vol assets get more weight.",
           "difficulty": "medium",
           "expected_steps": "100-200",
-          "config": {
-            "strategy": "risk_parity"
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"strategy": "risk_parity"},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-005", "name": "Sharpe Ratio", "check": "sharpe_ratio >= -1.5", "category": "outcome"},
+            {"id": "PAV-008", "name": "Diversification", "check": "herfindahl_index < 0.5", "category": "quality"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-004",
@@ -272,11 +270,14 @@
           "description": "Asset correlations change mid-episode (e.g., from 0.3 to 0.8). Agent must detect and diversify accordingly.",
           "difficulty": "medium",
           "expected_steps": "150-250",
-          "config": {
-            "trigger": "correlation_shift",
-            "correlation_before": 0.3,
-            "correlation_after": 0.8
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"trigger": "correlation_shift", "correlation_before": 0.3, "correlation_after": 0.8},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-006", "name": "Max Drawdown", "check": "max_drawdown <= 0.50", "category": "risk"},
+            {"id": "PAV-008", "name": "Diversification", "check": "herfindahl_index < 0.5", "category": "quality"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-005",
@@ -284,10 +285,14 @@
           "description": "Maximize return while keeping monthly turnover below 20%. Transaction costs are elevated (20 bps).",
           "difficulty": "medium",
           "expected_steps": "100-200",
-          "config": {
-            "transaction_cost": 0.002,
-            "max_turnover": 0.20
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"transaction_cost": 0.002, "max_turnover": 0.20},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-007", "name": "Turnover Budget", "check": "cumulative_turnover <= 5.0", "category": "cost"},
+            {"id": "PAV-009", "name": "Cost Efficiency", "check": "total_cost <= 30000", "category": "cost"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-006",
@@ -295,21 +300,29 @@
           "description": "One asset has fat-tailed returns (Student-t, df=3). Agent must limit exposure to the risky asset.",
           "difficulty": "hard",
           "expected_steps": "100-200",
-          "config": {
-            "fat_tail_asset": 0,
-            "tail_df": 3
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"fat_tail_asset": 0, "tail_df": 3},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-003", "name": "Max Single Asset", "check": "max(weights) <= 0.80", "category": "risk"},
+            {"id": "PAV-006", "name": "Max Drawdown", "check": "max_drawdown <= 0.50", "category": "risk"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-007",
           "name": "Multi-Objective: Return + ESG",
-          "description": "Maximize return while keeping allocation to 'green' assets (assets 1,2) above 40%.",
+          "description": "Maximize return while keeping allocation to green assets (assets 1,2) above 40%.",
           "difficulty": "hard",
           "expected_steps": "100-200",
-          "config": {
-            "green_assets": [0, 1],
-            "min_green_allocation": 0.40
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"green_assets": [0, 1], "min_green_allocation": 0.40},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-004", "name": "Portfolio Return", "check": "total_return >= -0.30", "category": "outcome"},
+            {"id": "PAV-008", "name": "Diversification", "check": "herfindahl_index < 0.5", "category": "quality"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-008",
@@ -317,10 +330,14 @@
           "description": "Bear market across all assets. Agent must find the least-bad allocation and minimize losses.",
           "difficulty": "hard",
           "expected_steps": "100-200",
-          "config": {
-            "regime": "bear",
-            "all_assets_negative": true
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"regime": "bear", "all_assets_negative": true},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-004", "name": "Portfolio Return", "check": "total_return >= -0.30", "category": "outcome"},
+            {"id": "PAV-006", "name": "Max Drawdown", "check": "max_drawdown <= 0.50", "category": "risk"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-009",
@@ -328,10 +345,14 @@
           "description": "Full episode with monthly rebalancing. Agent adapts weights based on rolling 60-day metrics.",
           "difficulty": "expert",
           "expected_steps": "200-400",
-          "config": {
-            "rebalance_frequency": 21,
-            "lookback": 60
-          }
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"rebalance_frequency": 21, "lookback": 60},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-005", "name": "Sharpe Ratio", "check": "sharpe_ratio >= -1.5", "category": "outcome"},
+            {"id": "PAV-007", "name": "Turnover Budget", "check": "cumulative_turnover <= 5.0", "category": "cost"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         },
         {
           "id": "PA-010",
@@ -339,120 +360,48 @@
           "description": "Benchmark scenario: compare RL weights against mean-variance optimal weights on same data.",
           "difficulty": "expert",
           "expected_steps": "200-400",
-          "config": {
-            "benchmark": "mean_variance",
-            "risk_aversion": 1.0
-          }
-        }
-      ],
-      "verifiers": [
-        {
-          "id": "PAV-001",
-          "name": "Weights Sum to 1",
-          "description": "Portfolio weights sum to approximately 1.0",
-          "check": "abs(sum(weights) - 1.0) < threshold",
-          "threshold": 0.01,
-          "threshold_label": "abs(sum - 1.0) < 0.01",
-          "category": "constraint",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "PAV-002",
-          "name": "Non-Negative Weights",
-          "description": "All weights are non-negative (long-only constraint)",
-          "check": "all(weights >= 0)",
-          "threshold": 0,
-          "threshold_label": "All weights >= 0",
-          "category": "constraint",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "PAV-003",
-          "name": "Max Single Asset Concentration",
-          "description": "No single asset exceeds concentration limit",
-          "check": "max(weights) <= threshold",
-          "threshold": 0.80,
-          "threshold_label": "max(weight) <= 80%",
-          "category": "risk",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "PAV-004",
-          "name": "Portfolio Return",
-          "description": "Total portfolio return above minimum",
-          "check": "total_return >= threshold",
-          "threshold": -0.30,
-          "threshold_label": ">= -30%",
-          "category": "outcome",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "PAV-005",
-          "name": "Sharpe Ratio",
-          "description": "Risk-adjusted return is acceptable",
-          "check": "sharpe_ratio >= threshold",
-          "threshold": -1.5,
-          "threshold_label": ">= -1.5",
-          "category": "outcome",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "PAV-006",
-          "name": "Max Drawdown",
-          "description": "Drawdown within limit",
-          "check": "max_drawdown <= threshold",
-          "threshold": 0.50,
-          "threshold_label": "<= 50%",
-          "category": "risk",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "PAV-007",
-          "name": "Turnover Budget",
-          "description": "Total turnover across episode within limit",
-          "check": "cumulative_turnover <= threshold",
-          "threshold": 5.0,
-          "threshold_label": "<= 500% cumulative turnover",
-          "category": "cost",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "PAV-008",
-          "name": "Diversification Check",
-          "description": "Portfolio is sufficiently diversified (Herfindahl index)",
-          "check": "herfindahl_index < threshold",
-          "threshold": 0.50,
-          "threshold_label": "HHI < 0.5 (not too concentrated)",
-          "category": "quality",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "PAV-009",
-          "name": "Cost Efficiency",
-          "description": "Transaction costs within budget",
-          "check": "total_cost <= threshold",
-          "threshold": 30000,
-          "threshold_label": "Costs <= 3% of $1M initial",
-          "category": "cost",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "PAV-010",
-          "name": "Episode Completion",
-          "description": "Agent completes the full allocation period",
-          "check": "status == completed",
-          "category": "completion",
-          "applies_to": "episode_end"
+          "tools": ["get_asset_returns", "rebalance_portfolio", "get_risk_metrics"],
+          "config": {"benchmark": "mean_variance", "risk_aversion": 1.0},
+          "verifiers": [
+            {"id": "PAV-001", "name": "Weights Sum to 1", "check": "abs(sum(weights) - 1.0) < 0.01", "category": "constraint"},
+            {"id": "PAV-004", "name": "Portfolio Return", "check": "total_return >= -0.30", "category": "outcome"},
+            {"id": "PAV-005", "name": "Sharpe Ratio", "check": "sharpe_ratio >= -1.5", "category": "outcome"},
+            {"id": "PAV-006", "name": "Max Drawdown", "check": "max_drawdown <= 0.50", "category": "risk"},
+            {"id": "PAV-010", "name": "Episode Completion", "check": "status == completed", "category": "completion"}
+          ]
         }
       ]
     },
-    "options-pricing": {
-      "display_name": "Options Pricing & Hedging",
-      "description": "Dynamic delta hedging for short call option positions",
-      "algorithm": "PPO (Continuous Policy)",
+    {
+      "name": "Apex Derivatives Hedging",
+      "id": "options-pricing",
+      "description": "Intelligent delta hedging for options book with stochastic volatility and transaction cost optimization",
+      "algorithm": "PPO (Continuous)",
       "action_type": "continuous",
       "action_dim": 1,
       "observation_dim": 7,
+      "tools": [
+        {
+          "name": "get_option_greeks",
+          "description": "Fetch Black-Scholes delta, gamma, current moneyness (S/K), time to expiry, and implied volatility",
+          "parameters": {},
+          "returns": "dict with delta, gamma, moneyness, time_to_expiry, sigma"
+        },
+        {
+          "name": "adjust_hedge",
+          "description": "Set the hedge ratio for the options position. 0=no hedge, 1=full BS delta hedge. Transaction costs applied to changes.",
+          "parameters": {
+            "hedge_ratio": {"type": "float", "min": -0.5, "max": 1.5, "description": "Target hedge ratio"}
+          },
+          "returns": "reward (float), new observation, P&L info"
+        },
+        {
+          "name": "get_pnl_status",
+          "description": "Get current hedging P&L, P&L variance, hedge position size, and hedging error relative to BS delta",
+          "parameters": {},
+          "returns": "dict with pnl, pnl_variance, hedge_position, hedge_error, bs_delta"
+        }
+      ],
       "scenarios": [
         {
           "id": "OP-001",
@@ -460,10 +409,13 @@
           "description": "Maintain hedge ratio = Black-Scholes delta at every step. Baseline strategy.",
           "difficulty": "easy",
           "expected_steps": "20-30",
-          "config": {
-            "strategy": "full_delta",
-            "sigma": 0.20
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"strategy": "full_delta", "sigma": 0.20},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-003", "name": "Hedging Error", "check": "avg |hedge - delta| < 0.5", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-002",
@@ -471,10 +423,13 @@
           "description": "Set hedge ratio once at start and hold. No rebalancing. Compare P&L variance against dynamic hedging.",
           "difficulty": "easy",
           "expected_steps": "20-30",
-          "config": {
-            "strategy": "static",
-            "initial_hedge": 0.5
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"strategy": "static", "initial_hedge": 0.5},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-002", "name": "P&L Above Minimum", "check": "pnl >= -50000", "category": "outcome"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-003",
@@ -482,22 +437,29 @@
           "description": "Transaction cost = 50 bps. Agent must hedge less frequently to save costs while managing risk.",
           "difficulty": "medium",
           "expected_steps": "20-30",
-          "config": {
-            "transaction_cost": 0.005,
-            "sigma": 0.20
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"transaction_cost": 0.005, "sigma": 0.20},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-005", "name": "Transaction Costs", "check": "costs <= 10% of premium", "category": "cost"},
+            {"id": "OPV-006", "name": "Smooth Hedging", "check": "avg |hedge_change| < 0.3", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-004",
           "name": "Stochastic Volatility",
-          "description": "Implied volatility follows Heston dynamics (mean-reverting with vol-of-vol). Agent must adapt hedge ratio to changing vol.",
+          "description": "Implied volatility follows Heston dynamics. Agent must adapt hedge ratio to changing vol.",
           "difficulty": "medium",
           "expected_steps": "20-30",
-          "config": {
-            "stochastic_vol": true,
-            "sigma": 0.20,
-            "vol_of_vol": 0.3
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"stochastic_vol": true, "sigma": 0.20, "vol_of_vol": 0.3},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-002", "name": "P&L Above Minimum", "check": "pnl >= -50000", "category": "outcome"},
+            {"id": "OPV-003", "name": "Hedging Error", "check": "avg |hedge - delta| < 0.5", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-005",
@@ -505,11 +467,13 @@
           "description": "Option is deep ITM (S/K = 1.20). Delta is near 1.0. Agent must maintain tight hedge.",
           "difficulty": "medium",
           "expected_steps": "20-30",
-          "config": {
-            "S0": 120,
-            "K": 100,
-            "sigma": 0.20
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"S0": 120, "K": 100, "sigma": 0.20},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-003", "name": "Hedging Error", "check": "avg |hedge - delta| < 0.5", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-006",
@@ -517,11 +481,13 @@
           "description": "Option is deep OTM (S/K = 0.80). Delta is near 0. Agent must avoid over-hedging.",
           "difficulty": "medium",
           "expected_steps": "20-30",
-          "config": {
-            "S0": 80,
-            "K": 100,
-            "sigma": 0.20
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"S0": 80, "K": 100, "sigma": 0.20},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-003", "name": "Hedging Error", "check": "avg |hedge - delta| < 0.5", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-007",
@@ -529,10 +495,14 @@
           "description": "Near expiry (T < 5 days), gamma spikes. Agent must dynamically adjust hedge as delta changes rapidly.",
           "difficulty": "hard",
           "expected_steps": "5-10",
-          "config": {
-            "T_days": 5,
-            "sigma": 0.25
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"T_days": 5, "sigma": 0.25},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-002", "name": "P&L Above Minimum", "check": "pnl >= -50000", "category": "outcome"},
+            {"id": "OPV-009", "name": "Greeks Awareness", "check": "correlation(gamma, |hedge_change|) > 0", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-008",
@@ -540,12 +510,15 @@
           "description": "Sudden vol increase from 20% to 50% mid-episode. Agent must react by increasing hedge aggressively.",
           "difficulty": "hard",
           "expected_steps": "20-30",
-          "config": {
-            "stochastic_vol": true,
-            "vol_spike_midpoint": true,
-            "sigma_start": 0.20,
-            "sigma_spike": 0.50
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"stochastic_vol": true, "sigma_start": 0.20, "sigma_spike": 0.50},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-002", "name": "P&L Above Minimum", "check": "pnl >= -50000", "category": "outcome"},
+            {"id": "OPV-004", "name": "P&L Variance", "check": "var(daily_pnl) < 100000000", "category": "risk"},
+            {"id": "OPV-008", "name": "No Naked Exposure", "check": "consecutive_unhedged <= 3", "category": "risk"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-009",
@@ -553,11 +526,15 @@
           "description": "Hedge a portfolio of options with different strikes. Agent manages net delta across the book.",
           "difficulty": "expert",
           "expected_steps": "20-30",
-          "config": {
-            "n_options": 100,
-            "strikes": [95, 100, 105],
-            "sigma": 0.20
-          }
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"n_options": 100, "strikes": [95, 100, 105], "sigma": 0.20},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-002", "name": "P&L Above Minimum", "check": "pnl >= -50000", "category": "outcome"},
+            {"id": "OPV-003", "name": "Hedging Error", "check": "avg |hedge - delta| < 0.5", "category": "quality"},
+            {"id": "OPV-007", "name": "Terminal Payoff Correct", "check": "abs(pnl - theoretical) < 5000", "category": "accuracy"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         },
         {
           "id": "OP-010",
@@ -565,146 +542,17 @@
           "description": "Full hedging episode. Minimize the variance of the daily P&L, not just terminal P&L.",
           "difficulty": "expert",
           "expected_steps": "20-30",
-          "config": {
-            "objective": "pnl_variance",
-            "sigma": 0.20
-          }
-        }
-      ],
-      "verifiers": [
-        {
-          "id": "OPV-001",
-          "name": "Hedge Ratio Bounds",
-          "description": "Hedge ratio within valid range",
-          "check": "hedge_ratio >= -0.5 AND hedge_ratio <= 1.5",
-          "threshold_min": -0.5,
-          "threshold_max": 1.5,
-          "threshold_label": "-0.5 <= ratio <= 1.5",
-          "category": "constraint",
-          "applies_to": "every_step"
-        },
-        {
-          "id": "OPV-002",
-          "name": "P&L Above Minimum",
-          "description": "Total hedging P&L above floor",
-          "check": "pnl >= threshold",
-          "threshold": -50000,
-          "threshold_label": "P&L >= -$50,000",
-          "category": "outcome",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-003",
-          "name": "Hedging Error",
-          "description": "Average absolute hedge error relative to BS delta",
-          "check": "avg(abs(hedge - bs_delta)) < threshold",
-          "threshold": 0.5,
-          "threshold_label": "avg |hedge - delta| < 0.5",
-          "category": "quality",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-004",
-          "name": "P&L Variance",
-          "description": "Variance of daily P&L below threshold",
-          "check": "var(daily_pnl) < threshold",
-          "threshold": 100000000,
-          "threshold_label": "Variance < ($10,000)^2",
-          "category": "risk",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-005",
-          "name": "Transaction Costs",
-          "description": "Total hedging costs within budget",
-          "check": "total_cost <= threshold",
-          "threshold_formula": "0.10 * option_premium * n_options",
-          "threshold_label": "Costs <= 10% of option premium",
-          "category": "cost",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-006",
-          "name": "Smooth Hedging",
-          "description": "Hedge ratio changes are not erratic",
-          "check": "avg(abs(delta_hedge_per_step)) < threshold",
-          "threshold": 0.3,
-          "threshold_label": "avg |hedge change| < 0.3 per step",
-          "category": "quality",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-007",
-          "name": "Terminal Payoff Correct",
-          "description": "At expiry, final P&L reflects correct option payoff",
-          "check": "abs(final_pnl - theoretical_pnl) < threshold",
-          "threshold": 5000,
-          "threshold_label": "abs(P&L - theoretical) < $5,000",
-          "category": "accuracy",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-008",
-          "name": "No Naked Exposure",
-          "description": "Agent never leaves position fully unhedged for more than 3 consecutive steps",
-          "check": "max_consecutive_unhedged <= threshold",
-          "threshold": 3,
-          "threshold_label": "Consecutive unhedged steps <= 3",
-          "category": "risk",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-009",
-          "name": "Greeks Awareness",
-          "description": "Agent adjusts hedge more when gamma is high (near expiry or ATM)",
-          "check": "correlation(gamma, abs(hedge_change)) > threshold",
-          "threshold": 0,
-          "threshold_label": "Positive correlation with gamma",
-          "category": "quality",
-          "applies_to": "episode_end"
-        },
-        {
-          "id": "OPV-010",
-          "name": "Episode Completion",
-          "description": "Agent completes through option expiry",
-          "check": "all steps executed until expiry",
-          "category": "completion",
-          "applies_to": "episode_end"
+          "tools": ["get_option_greeks", "adjust_hedge", "get_pnl_status"],
+          "config": {"objective": "pnl_variance", "sigma": 0.20},
+          "verifiers": [
+            {"id": "OPV-001", "name": "Hedge Ratio Bounds", "check": "-0.5 <= ratio <= 1.5", "category": "constraint"},
+            {"id": "OPV-002", "name": "P&L Above Minimum", "check": "pnl >= -50000", "category": "outcome"},
+            {"id": "OPV-004", "name": "P&L Variance", "check": "var(daily_pnl) < 100000000", "category": "risk"},
+            {"id": "OPV-006", "name": "Smooth Hedging", "check": "avg |hedge_change| < 0.3", "category": "quality"},
+            {"id": "OPV-010", "name": "Episode Completion", "check": "all steps executed", "category": "completion"}
+          ]
         }
       ]
     }
-  },
-  "verifier_categories": [
-    {"id": "outcome", "name": "Outcome", "description": "End-of-episode performance metrics (return, Sharpe)"},
-    {"id": "risk", "name": "Risk", "description": "Risk limit checks (drawdown, P&L variance, naked exposure)"},
-    {"id": "constraint", "name": "Constraint", "description": "Hard constraints on actions/state (position limits, weight bounds)"},
-    {"id": "cost", "name": "Cost", "description": "Transaction cost budgets"},
-    {"id": "quality", "name": "Quality", "description": "Behavioral quality metrics (diversification, hedging smoothness)"},
-    {"id": "completion", "name": "Completion", "description": "Episode lifecycle checks"},
-    {"id": "format", "name": "Format", "description": "Data format validation (valid action integers)"},
-    {"id": "sanity", "name": "Sanity", "description": "Degenerate behavior detection"},
-    {"id": "efficiency", "name": "Efficiency", "description": "Trade frequency and resource usage checks"},
-    {"id": "accuracy", "name": "Accuracy", "description": "Correctness of final outcomes vs theoretical"},
-    {"id": "survival", "name": "Survival", "description": "Portfolio survival / ruin prevention"}
-  ],
-  "summary": {
-    "total_scenarios": 30,
-    "total_verifiers": 30,
-    "scenarios_by_workflow": {
-      "stock-trading": 10,
-      "portfolio-allocation": 10,
-      "options-pricing": 10
-    },
-    "verifiers_by_workflow": {
-      "stock-trading": 10,
-      "portfolio-allocation": 10,
-      "options-pricing": 10
-    },
-    "scenarios_by_difficulty": {
-      "easy": 6,
-      "medium": 10,
-      "hard": 10,
-      "expert": 4
-    }
-  }
+  ]
 }
