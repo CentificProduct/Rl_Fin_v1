@@ -435,104 +435,164 @@
 
   <!-- Active environment panel -->
   <div id="activePanel" style="display:none;">
-    <div class="section-title">Active Session <div class="line"></div></div>
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-      <!-- Left: Controls + Observation -->
-      <div>
-        <div class="card" style="margin-bottom: 16px;">
-          <div class="card-header">
-            <h3 id="activeEnvTitle">Environment</h3>
-            <span class="badge badge-active" id="activeStatus">ACTIVE</span>
-          </div>
-          <div class="controls-bar" style="flex-direction:column;gap:8px;padding:12px 18px;">
-            <!-- Row 1: Basic controls -->
-            <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;">
-              <button class="btn btn-green btn-sm" onclick="resetEnv()">Reset</button>
-              <button class="btn btn-primary btn-sm" onclick="autoStep()" id="autoBtn">Random Auto-Step</button>
-              <button class="btn btn-red btn-sm" onclick="stopAutoStep()" id="stopBtn" style="display:none;">Stop</button>
-              <label style="margin-left:auto;">Speed:</label>
-              <select id="stepSpeed" style="width:80px;">
-                <option value="300">Fast</option>
-                <option value="700" selected>Normal</option>
-                <option value="1500">Slow</option>
-              </select>
-              <button class="btn btn-outline btn-sm" onclick="deleteEnv()">Close Env</button>
-            </div>
-            <!-- Row 2: RL Training controls -->
-            <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border);">
-              <span style="font-size:11px;font-weight:700;color:var(--primary);">RL TRAINING:</span>
-              <button class="btn btn-sm" style="background:#1565c0;color:white;" onclick="trainAgent()" id="trainBtn">Train DQN</button>
-              <button class="btn btn-sm" style="background:#2e7d32;color:white;" onclick="agentAutoStep()" id="agentBtn" disabled>Agent Auto-Step</button>
-              <button class="btn btn-red btn-sm" onclick="stopAgentStep()" id="agentStopBtn" style="display:none;">Stop Agent</button>
-              <span id="trainBadge" class="badge badge-untrained" style="margin-left:4px;">UNTRAINED</span>
-            </div>
-          </div>
-          <div class="card-body">
-            <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:6px;">ACTION</div>
-            <div id="discreteActionsContainer" class="discrete-actions"></div>
-            <div id="continuousActionContainer" style="display:none;">
-              <div class="action-panel">
-                <input type="text" id="continuousInput" placeholder="e.g. [0.2, 0.3, 0.1, 0.2, 0.2]">
-                <button class="btn btn-primary btn-sm" onclick="stepContinuous()">Step</button>
+    <!-- Environment header -->
+    <div class="card" style="margin-bottom:0;border-radius:var(--radius) var(--radius) 0 0;">
+      <div class="card-header" style="justify-content:space-between;">
+        <h3 id="activeEnvTitle">Environment</h3>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="badge badge-active" id="activeStatus">ACTIVE</span>
+          <span id="trainBadge" class="badge badge-untrained">UNTRAINED</span>
+          <button class="btn btn-outline btn-sm" onclick="deleteEnv()">Close Env</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;border-bottom:2px solid var(--border);background:var(--card);margin-bottom:20px;border-radius:0 0 var(--radius) var(--radius);">
+      <button class="btn" id="tabTraining" onclick="switchTab('training')" style="flex:1;border-radius:0;border:none;padding:12px;font-size:14px;font-weight:700;background:var(--primary);color:white;border-bottom:3px solid var(--primary);">
+        Training
+      </button>
+      <button class="btn" id="tabSimulation" onclick="switchTab('simulation')" style="flex:1;border-radius:0;border:none;padding:12px;font-size:14px;font-weight:600;background:transparent;color:var(--muted);border-bottom:3px solid transparent;">
+        Simulation
+      </button>
+    </div>
+
+    <!-- ============ TRAINING TAB ============ -->
+    <div id="trainingView">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <!-- Left: Training config + progress -->
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header" style="background:#1565c0;"><h3 style="color:white;">Training Configuration</h3></div>
+            <div class="card-body">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div>
+                  <label style="font-size:11px;font-weight:600;color:var(--primary);display:block;margin-bottom:4px;">Algorithm</label>
+                  <div id="trainAlgoLabel" style="font-size:15px;font-weight:700;color:var(--text);">DQN</div>
+                </div>
+                <div>
+                  <label style="font-size:11px;font-weight:600;color:var(--primary);display:block;margin-bottom:4px;">Episodes</label>
+                  <select id="trainEpisodes" style="padding:5px 10px;border:1px solid var(--border);border-radius:5px;font-size:13px;width:100%;">
+                    <option value="5">5 (fast test)</option>
+                    <option value="15" selected>15 (default)</option>
+                    <option value="30">30 (thorough)</option>
+                    <option value="50">50 (extended)</option>
+                  </select>
+                </div>
               </div>
-              <div style="font-size:10px;color:var(--muted);margin-top:4px;" id="continuousHint"></div>
+              <button class="btn btn-sm" style="background:#1565c0;color:white;width:100%;justify-content:center;padding:10px;" onclick="trainAgent()" id="trainBtn">
+                Start Training
+              </button>
+            </div>
+          </div>
+
+          <!-- Training progress panel -->
+          <div class="train-panel" id="trainPanel" style="display:none;">
+            <div class="train-header">
+              <h3>Training Progress</h3>
+              <span id="trainStatusText" style="font-size:12px;opacity:0.9;">Ready</span>
+            </div>
+            <div class="train-body">
+              <div class="train-progress"><div class="train-progress-bar" id="trainProgressBar" style="width:0%"></div></div>
+              <div id="trainProgressLabel" style="font-size:11px;color:var(--muted);text-align:center;">Waiting to start...</div>
+              <div class="train-metrics" id="trainMetrics" style="display:none;">
+                <div class="train-metric"><div class="tv" id="tmReturn">--</div><div class="tl">Best Return</div></div>
+                <div class="train-metric"><div class="tv" id="tmSharpe">--</div><div class="tl">Best Sharpe</div></div>
+                <div class="train-metric"><div class="tv" id="tmEpsilon">--</div><div class="tl">Final Epsilon</div></div>
+                <div class="train-metric"><div class="tv" id="tmEpisodes">--</div><div class="tl">Episodes</div></div>
+              </div>
+              <div class="chart-container-sm"><canvas id="trainChart"></canvas></div>
             </div>
           </div>
         </div>
 
-        <!-- Training results panel -->
-        <div class="train-panel" id="trainPanel" style="display:none;">
-          <div class="train-header">
-            <h3>RL Training</h3>
-            <span id="trainStatusText" style="font-size:12px;opacity:0.9;">Ready</span>
-          </div>
-          <div class="train-body">
-            <div class="train-progress"><div class="train-progress-bar" id="trainProgressBar" style="width:0%"></div></div>
-            <div id="trainProgressLabel" style="font-size:11px;color:var(--muted);text-align:center;">Click "Train DQN" to start</div>
-            <div class="train-metrics" id="trainMetrics" style="display:none;">
-              <div class="train-metric"><div class="tv" id="tmReturn">--</div><div class="tl">Best Return</div></div>
-              <div class="train-metric"><div class="tv" id="tmSharpe">--</div><div class="tl">Best Sharpe</div></div>
-              <div class="train-metric"><div class="tv" id="tmEpsilon">--</div><div class="tl">Final Epsilon</div></div>
-              <div class="train-metric"><div class="tv" id="tmEpisodes">--</div><div class="tl">Episodes</div></div>
+        <!-- Right: Training log -->
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><h3>Training Log</h3><button class="btn btn-sm btn-outline" onclick="clearLog()">Clear</button></div>
+            <div class="card-body" style="padding:0;">
+              <div class="log-area" id="logArea" style="min-height:300px;">
+                <div class="log-info">Select an environment and click "Start Training" to begin.</div>
+              </div>
             </div>
-            <div class="chart-container-sm"><canvas id="trainChart"></canvas></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header"><h3>Observation</h3><span class="env-type" id="obsShape"></span></div>
-          <div class="card-body">
-            <div class="obs-grid" id="obsGrid"></div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Right: Reward chart + Info + Log -->
-      <div>
-        <div class="card" style="margin-bottom: 16px;">
-          <div class="card-header"><h3>Reward History</h3><span class="env-type" id="rewardTotal">Total: 0.00</span></div>
-          <div class="card-body">
-            <div class="chart-container"><canvas id="rewardChart"></canvas></div>
+    <!-- ============ SIMULATION TAB ============ -->
+    <div id="simulationView" style="display:none;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <!-- Left: Controls + Observation -->
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header" style="background:#2e7d32;"><h3 style="color:white;">Simulation Controls</h3></div>
+            <div class="controls-bar" style="flex-direction:column;gap:8px;padding:12px 18px;">
+              <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;">
+                <button class="btn btn-green btn-sm" onclick="resetEnv()">Reset</button>
+                <button class="btn btn-primary btn-sm" onclick="autoStep()" id="autoBtn">Random Auto-Step</button>
+                <button class="btn btn-red btn-sm" onclick="stopAutoStep()" id="stopBtn" style="display:none;">Stop</button>
+                <label style="margin-left:auto;">Speed:</label>
+                <select id="stepSpeed" style="width:80px;">
+                  <option value="300">Fast</option>
+                  <option value="700" selected>Normal</option>
+                  <option value="1500">Slow</option>
+                </select>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border);">
+                <span style="font-size:11px;font-weight:700;color:#2e7d32;">TRAINED AGENT:</span>
+                <button class="btn btn-sm" style="background:#2e7d32;color:white;" onclick="agentAutoStep()" id="agentBtn" disabled>Agent Auto-Step</button>
+                <button class="btn btn-red btn-sm" onclick="stopAgentStep()" id="agentStopBtn" style="display:none;">Stop Agent</button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div style="font-size:12px;font-weight:600;color:var(--primary);margin-bottom:6px;">MANUAL ACTION</div>
+              <div id="discreteActionsContainer" class="discrete-actions"></div>
+              <div id="continuousActionContainer" style="display:none;">
+                <div class="action-panel">
+                  <input type="text" id="continuousInput" placeholder="e.g. [0.2, 0.3, 0.1, 0.2, 0.2]">
+                  <button class="btn btn-primary btn-sm" onclick="stepContinuous()">Step</button>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-top:4px;" id="continuousHint"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Observation</h3><span class="env-type" id="obsShape"></span></div>
+            <div class="card-body">
+              <div class="obs-grid" id="obsGrid"></div>
+            </div>
           </div>
         </div>
 
-        <div class="card" style="margin-bottom: 16px;">
-          <div class="card-header"><h3>Step Info</h3></div>
-          <div class="card-body">
-            <table class="info-table" id="infoTable">
-              <tr><td>Step</td><td id="infoStep">0</td></tr>
-              <tr><td>Last Reward</td><td id="infoReward">-</td></tr>
-              <tr><td>Terminated</td><td id="infoTerminated">false</td></tr>
-              <tr><td>Truncated</td><td id="infoTruncated">false</td></tr>
-            </table>
+        <!-- Right: Reward + Info + Log -->
+        <div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><h3>Reward History</h3><span class="env-type" id="rewardTotal">Total: 0.00</span></div>
+            <div class="card-body">
+              <div class="chart-container"><canvas id="rewardChart"></canvas></div>
+            </div>
           </div>
-        </div>
 
-        <div class="card">
-          <div class="card-header"><h3>Event Log</h3><button class="btn btn-sm btn-outline" onclick="clearLog()">Clear</button></div>
-          <div class="card-body" style="padding:0;">
-            <div class="log-area" id="logArea">
-              <div class="log-info">Waiting for environment selection...</div>
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-header"><h3>Step Info</h3></div>
+            <div class="card-body">
+              <table class="info-table" id="infoTable">
+                <tr><td>Step</td><td id="infoStep">0</td></tr>
+                <tr><td>Last Reward</td><td id="infoReward">-</td></tr>
+                <tr><td>Terminated</td><td id="infoTerminated">false</td></tr>
+                <tr><td>Truncated</td><td id="infoTruncated">false</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h3>Simulation Log</h3></div>
+            <div class="card-body" style="padding:0;">
+              <div class="log-area" id="simLogArea" style="min-height:120px;">
+                <div class="log-info">Run a simulation to see step-by-step actions here.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -952,6 +1012,37 @@ function stopAutoStep() {
   document.getElementById('stopBtn').style.display = 'none';
 }
 
+// --- Tab Switching ---
+let currentTab = 'training';
+
+function switchTab(tab) {
+  currentTab = tab;
+  const trainingView = document.getElementById('trainingView');
+  const simulationView = document.getElementById('simulationView');
+  const tabTraining = document.getElementById('tabTraining');
+  const tabSimulation = document.getElementById('tabSimulation');
+
+  if (tab === 'training') {
+    trainingView.style.display = '';
+    simulationView.style.display = 'none';
+    tabTraining.style.background = 'var(--primary)';
+    tabTraining.style.color = 'white';
+    tabTraining.style.borderBottomColor = 'var(--primary)';
+    tabSimulation.style.background = 'transparent';
+    tabSimulation.style.color = 'var(--muted)';
+    tabSimulation.style.borderBottomColor = 'transparent';
+  } else {
+    trainingView.style.display = 'none';
+    simulationView.style.display = '';
+    tabSimulation.style.background = '#2e7d32';
+    tabSimulation.style.color = 'white';
+    tabSimulation.style.borderBottomColor = '#2e7d32';
+    tabTraining.style.background = 'transparent';
+    tabTraining.style.color = 'var(--muted)';
+    tabTraining.style.borderBottomColor = 'transparent';
+  }
+}
+
 // --- RL Training ---
 let isTraining = false;
 let isTrained = false;
@@ -983,9 +1074,10 @@ async function trainAgent() {
   log('info', `Starting ${algoName} training (15 episodes)...`);
 
   try {
+    const numEpisodes = parseInt(document.getElementById('trainEpisodes').value) || 15;
     const res = await api(`/envs/${currentEnvId}/train`, {
       method: 'POST',
-      body: JSON.stringify({ algorithm: 'dqn', episodes: 15 })
+      body: JSON.stringify({ algorithm: 'dqn', episodes: numEpisodes })
     });
 
     isTrained = true;
@@ -1006,7 +1098,10 @@ async function trainAgent() {
     document.getElementById('tmSharpe').textContent = (best.sharpe_ratio ?? best.avg_reward ?? 0).toFixed(3);
     document.getElementById('tmEpsilon').textContent = (res.final_epsilon ?? 0).toFixed(3);
     document.getElementById('tmEpisodes').textContent = res.episodes_trained;
-    progressLabel.textContent = 'Training complete! Click "Agent Auto-Step" to see the agent trade.';
+    progressLabel.textContent = 'Training complete! Switching to Simulation tab...';
+
+    // Auto-switch to simulation tab after training
+    setTimeout(() => switchTab('simulation'), 1500);
 
     // Draw training chart
     drawTrainChart(res.training_history);
@@ -1157,7 +1252,9 @@ function showActivePanel(envType, createRes) {
   document.getElementById('agentBtn').style.display = '';
 
   const algoName = envType === 'stock-trading' ? 'DQN' : 'PPO';
-  document.getElementById('trainBtn').textContent = 'Train ' + algoName;
+  document.getElementById('trainBtn').textContent = 'Start Training';
+  document.getElementById('trainAlgoLabel').textContent = algoName + (envType === 'stock-trading' ? ' (Double + Dueling)' : ' (Continuous Policy)');
+  switchTab('training');
   const info = envTypes[envType];
   document.getElementById('activeEnvTitle').textContent = info.display_name;
   document.getElementById('obsShape').textContent = 'obs: [' + createRes.observation_shape + ']';
@@ -1322,12 +1419,18 @@ function updateInfo({ step, reward, terminated, truncated }) {
 }
 
 function log(type, msg) {
-  const area = document.getElementById('logArea');
   const ts = new Date().toLocaleTimeString();
   const cls = type === 'step' ? 'log-step' : type === 'error' ? 'log-error' :
               type === 'reward' ? 'log-reward' : 'log-info';
-  area.innerHTML += `<div class="${cls}">[${ts}] ${msg}</div>`;
-  area.scrollTop = area.scrollHeight;
+  const line = `<div class="${cls}">[${ts}] ${msg}</div>`;
+
+  const trainLog = document.getElementById('logArea');
+  if (trainLog) { trainLog.innerHTML += line; trainLog.scrollTop = trainLog.scrollHeight; }
+
+  if (type === 'step') {
+    const simLog = document.getElementById('simLogArea');
+    if (simLog) { simLog.innerHTML += line; simLog.scrollTop = simLog.scrollHeight; }
+  }
 }
 
 function clearLog() { document.getElementById('logArea').innerHTML = ''; }
